@@ -96,12 +96,28 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
       const updatedViews = [...savedViews];
       
-      // Make the dragged view a child of the target view
-      const activeIndex = updatedViews.findIndex(v => v.id === activeId);
-      updatedViews[activeIndex] = { ...activeView, parentId: overId };
+      // Get the drag position data
+      const delta = event.delta;
+      const isSmallVerticalMovement = Math.abs(delta.y) < 15; // Soglia per movimento piccolo
       
-      // Expand the parent view to show the new child
-      setExpandedGroups(prev => new Set([...prev, overId]));
+      if (isSmallVerticalMovement) {
+        // Movimento piccolo = nidificazione (rendere child)
+        const activeIndex = updatedViews.findIndex(v => v.id === activeId);
+        updatedViews[activeIndex] = { ...activeView, parentId: overId };
+        
+        // Expand the parent view to show the new child
+        setExpandedGroups(prev => new Set([...prev, overId]));
+      } else {
+        // Movimento ampio = riordinamento
+        const oldIndex = savedViews.findIndex(v => v.id === activeId);
+        const newIndex = savedViews.findIndex(v => v.id === overId);
+        
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const reorderedViews = arrayMove(savedViews, oldIndex, newIndex);
+          onUpdateViews(reorderedViews);
+          return;
+        }
+      }
       
       onUpdateViews(updatedViews);
     }
