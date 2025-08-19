@@ -6,6 +6,7 @@ import Preview from '@/components/Preview';
 import AIPrompt from '@/components/AIPrompt';
 import { toast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { saveAs } from 'file-saver';
 
 const DEFAULT_DIAGRAM = `graph TD
@@ -102,26 +103,32 @@ const Index = () => {
       />
       
       <main className="flex-1 container py-6 flex flex-col gap-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
-          <div className="glass-panel p-4 flex flex-col animate-slide-in">
-            <Editor 
-              value={code} 
-              onChange={setCode} 
-              className="flex-1"
-              promptValue={prompt}
-              onPromptChange={setPrompt}
-            />
-            <Separator className="my-4" />
-            <AIPrompt 
-              prompt={prompt} 
-              onDiagramGenerated={handleDiagramGenerated} 
-            />
-          </div>
+        <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-lg border bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0">
+              <Editor 
+                value={code} 
+                onChange={setCode} 
+                className="flex-1"
+                promptValue={prompt}
+                onPromptChange={setPrompt}
+              />
+              <Separator className="my-4" />
+              <AIPrompt 
+                prompt={prompt} 
+                onDiagramGenerated={handleDiagramGenerated} 
+              />
+            </div>
+          </ResizablePanel>
           
-          <div className="glass-panel p-4 flex flex-col animate-slide-in" style={{ animationDelay: '100ms' }}>
-            <Preview code={code} className="flex-1" />
-          </div>
-        </div>
+          <ResizableHandle withHandle />
+          
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0" style={{ animationDelay: '100ms' }}>
+              <Preview code={code} className="flex-1" />
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
         
         <div className="glass-panel p-4 text-center text-sm text-slate-500 dark:text-slate-400 animate-slide-in" style={{ animationDelay: '200ms' }}>
           <p>
