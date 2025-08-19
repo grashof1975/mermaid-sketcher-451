@@ -362,24 +362,49 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
     switch (direction) {
       case 'right': {
-        // Nidifica sotto la vista superiore (trova la vista precedente nello stesso livello)
-        const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
-        const currentIndexInLevel = sameLevel.findIndex(v => v.id === selectedViewId);
-        if (currentIndexInLevel > 0) {
-          const parentView = sameLevel[currentIndexInLevel - 1];
-          updatedViews[viewIndex] = { ...view, parentId: parentView.id };
-          setExpandedGroups(prev => new Set([...prev, parentView.id]));
-          toast({
-            title: "Vista nidificata",
-            description: `"${view.name}" spostata sotto "${parentView.name}"`,
-          });
+        // Nidifica sotto la vista superiore (trova la vista precedente nell'elenco generale)
+        const allViews = updatedViews.filter(v => !v.parentId); // Solo viste di primo livello
+        const currentIndex = allViews.findIndex(v => v.id === selectedViewId);
+        
+        // Se la vista corrente è annidata, trova la sua posizione nell'elenco generale
+        if (view.parentId) {
+          // Per viste annidate, trova la vista precedente nello stesso livello di annidamento
+          const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
+          const currentIndexInLevel = sameLevel.findIndex(v => v.id === selectedViewId);
+          if (currentIndexInLevel > 0) {
+            const parentView = sameLevel[currentIndexInLevel - 1];
+            updatedViews[viewIndex] = { ...view, parentId: parentView.id };
+            setExpandedGroups(prev => new Set([...prev, parentView.id]));
+            conditionalToast({
+              title: "Vista nidificata",
+              description: `"${view.name}" spostata sotto "${parentView.name}"`,
+            });
+          } else {
+            conditionalToast({
+              title: "Operazione non possibile",
+              description: "Non c'è una vista precedente per la nidificazione",
+              variant: "destructive",
+            });
+            return;
+          }
         } else {
-          toast({
-            title: "Operazione non possibile",
-            description: "Non c'è una vista precedente per la nidificazione",
-            variant: "destructive",
-          });
-          return;
+          // Per viste di primo livello, trova la vista precedente nell'elenco
+          if (currentIndex > 0) {
+            const parentView = allViews[currentIndex - 1];
+            updatedViews[viewIndex] = { ...view, parentId: parentView.id };
+            setExpandedGroups(prev => new Set([...prev, parentView.id]));
+            conditionalToast({
+              title: "Vista nidificata",
+              description: `"${view.name}" spostata sotto "${parentView.name}"`,
+            });
+          } else {
+            conditionalToast({
+              title: "Operazione non possibile",
+              description: "Non c'è una vista precedente per la nidificazione",
+              variant: "destructive",
+            });
+            return;
+          }
         }
         break;
       }
