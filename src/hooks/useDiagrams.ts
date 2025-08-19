@@ -18,14 +18,16 @@ export const useDiagrams = () => {
     try {
       const { data, error } = await supabase
         .from('diagrams')
-        .select(`
-          *,
-          profiles:user_id(username, full_name, avatar_url)
-        `)
+        .select('*')
         .eq('user_id', user.id as any)
         .order('updated_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error loading diagrams:', error);
+        throw error;
+      }
+      
+      console.log('Diagrams loaded successfully:', data?.length || 0, 'diagrams');
       setDiagrams((data || []) as unknown as Diagram[]);
     } catch (error) {
       console.error('Error loading diagrams:', error);
