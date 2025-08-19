@@ -31,6 +31,8 @@ const Index = () => {
   const [currentView, setCurrentView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [showLeftPanel, setShowLeftPanel] = useState<boolean>(true);
   const [showFooterPanel, setShowFooterPanel] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<string>("views");
+  const [pendingCommentViewId, setPendingCommentViewId] = useState<string | null>(null);
   const previewRef = useRef<PreviewRef>(null);
 
   // Initialize theme on component mount
@@ -146,27 +148,22 @@ const Index = () => {
       ...commentData,
       id: `comment-${Date.now()}`,
       timestamp: Date.now(),
+      // Se c'è un viewId in sospeso, collegalo
+      viewId: pendingCommentViewId || commentData.viewId,
     };
     setComments(prev => [...prev, newComment]);
+    setPendingCommentViewId(null); // Reset pending viewId
   };
 
   const handleCreateCommentForView = (viewId: string) => {
-    const view = savedViews.find(v => v.id === viewId);
-    if (!view) return;
-
-    const newComment: Comment = {
-      id: `comment-${Date.now()}`,
-      text: `Commento per la vista "${view.name}"`,
-      timestamp: Date.now(),
-      viewId: viewId,
-    };
+    // Imposta il viewId in sospeso e cambia alla tab commenti
+    setPendingCommentViewId(viewId);
+    setActiveTab("comments");
     
-    setComments(prev => [...prev, newComment]);
-    
-    toast({
-      title: "Commento creato",
-      description: `Nuovo commento per la vista "${view.name}"`,
-    });
+    // Se il pannello è collassato, espandilo
+    if (!showFooterPanel) {
+      setShowFooterPanel(true);
+    }
   };
 
   const handleDeleteComment = (id: string) => {
@@ -221,6 +218,19 @@ const Index = () => {
     toast({
       title: "Vista scollegata",
       description: "La vista è stata scollegata dal commento",
+    });
+  };
+
+  const handleEditComment = (commentId: string, newText: string) => {
+    setComments(prev => prev.map(comment =>
+      comment.id === commentId
+        ? { ...comment, text: newText }
+        : comment
+    ));
+    
+    toast({
+      title: "Commento aggiornato",
+      description: "Il commento è stato modificato",
     });
   };
 
@@ -282,7 +292,7 @@ const Index = () => {
           <ResizableHandle withHandle />
           
           <ResizablePanel defaultSize={25} minSize={15} maxSize={50}>
-            <Tabs defaultValue="views" className="h-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="views">Viste</TabsTrigger>
                 <TabsTrigger value="comments">Commenti</TabsTrigger>
@@ -314,9 +324,11 @@ const Index = () => {
                   currentView={currentView}
                   onAddComment={handleAddComment}
                   onDeleteComment={handleDeleteComment}
+                  onEditComment={handleEditComment}
                   onCreateProvisionalView={handleCreateProvisionalView}
                   onLoadView={handleLoadProvisionalView}
                   onUnlinkView={handleUnlinkView}
+                  pendingViewId={pendingCommentViewId}
                 />
               </TabsContent>
             </Tabs>

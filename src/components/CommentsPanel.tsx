@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MessageSquare, Plus, Trash2, Eye, Link, Unlink } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MessageSquare, Plus, Trash2, Eye, Link, Unlink, Edit, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,9 +19,11 @@ interface CommentsPanelProps {
   currentView: { zoom: number; pan: { x: number; y: number } };
   onAddComment: (comment: Omit<Comment, 'id' | 'timestamp'>) => void;
   onDeleteComment: (id: string) => void;
+  onEditComment: (commentId: string, newText: string) => void;
   onCreateProvisionalView: (commentId: string, viewName: string) => void;
   onLoadView: (view: SavedView | ProvisionalView) => void;
   onUnlinkView: (commentId: string) => void;
+  pendingViewId?: string | null;
 }
 
 const CommentsPanel: React.FC<CommentsPanelProps> = ({
@@ -31,12 +33,27 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   currentView,
   onAddComment,
   onDeleteComment,
+  onEditComment,
   onCreateProvisionalView,
   onLoadView,
   onUnlinkView,
+  pendingViewId,
 }) => {
   const [newCommentText, setNewCommentText] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+
+  // Effect per aprire automaticamente il form quando c'è un pendingViewId
+  useEffect(() => {
+    if (pendingViewId) {
+      const view = savedViews.find(v => v.id === pendingViewId);
+      if (view) {
+        setNewCommentText(`Commento per la vista "${view.name}": `);
+        setIsAddingComment(true);
+      }
+    }
+  }, [pendingViewId, savedViews]);
 
   const handleAddComment = () => {
     if (!newCommentText.trim()) {
@@ -72,6 +89,27 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
       title: "Vista provvisoria creata",
       description: `Vista "${viewName}" collegata al commento`,
     });
+  };
+
+  const handleEditComment = (commentId: string) => {
+    const comment = comments.find(c => c.id === commentId);
+    if (comment) {
+      setEditingCommentId(commentId);
+      setEditingText(comment.text);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingText.trim() || !editingCommentId) return;
+    
+    onEditComment(editingCommentId, editingText.trim());
+    setEditingCommentId(null);
+    setEditingText('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingText('');
   };
 
   const getLinkedView = (comment: Comment): SavedView | ProvisionalView | null => {
@@ -181,16 +219,56 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm">{comment.text}</p>
+                      {editingCommentId === comment.id ? (
+                        <Textarea
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          className="mt-2"
+                          rows={3}
+                        />
+                      ) : (
+                        <p className="text-sm">{comment.text}</p>
+                      )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDeleteComment(comment.id)}
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex flex-col gap-1">
+                      {editingCommentId === comment.id ? (
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleSaveEdit}
+                            className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
+                          >
+                            <Check className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCancelEdit}
+                            className="h-6 w-6 p-0 text-gray-600 hover:text-gray-700"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditComment(comment.id)}
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDeleteComment(comment.id)}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 
