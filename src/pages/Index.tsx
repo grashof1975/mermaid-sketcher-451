@@ -4,10 +4,13 @@ import Editor from '@/components/Editor';
 import Preview, { PreviewRef } from '@/components/Preview';
 import AIPrompt from '@/components/AIPrompt';
 import ViewSidebar, { SavedView } from '@/components/ViewSidebar';
+import CommentsPanel from '@/components/CommentsPanel';
+import { Comment, ProvisionalView } from '@/types/comments';
 import { toast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { saveAs } from 'file-saver';
 
@@ -23,6 +26,8 @@ const Index = () => {
   const [prompt, setPrompt] = useState<string>("");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [provisionalViews, setProvisionalViews] = useState<ProvisionalView[]>([]);
   const [currentView, setCurrentView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [showLeftPanel, setShowLeftPanel] = useState<boolean>(true);
   const [showFooterPanel, setShowFooterPanel] = useState<boolean>(true);
@@ -135,6 +140,71 @@ const Index = () => {
     setCurrentView({ zoom: 1, pan: { x: 0, y: 0 } });
   };
 
+  // Comments management functions
+  const handleAddComment = (commentData: Omit<Comment, 'id' | 'timestamp'>) => {
+    const newComment: Comment = {
+      ...commentData,
+      id: `comment-${Date.now()}`,
+      timestamp: Date.now(),
+    };
+    setComments(prev => [...prev, newComment]);
+  };
+
+  const handleDeleteComment = (id: string) => {
+    const comment = comments.find(c => c.id === id);
+    if (comment?.linkedViewId && comment.isProvisional) {
+      // Rimuovi anche la vista provvisoria collegata
+      setProvisionalViews(prev => prev.filter(v => v.id !== comment.linkedViewId));
+    }
+    setComments(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleCreateProvisionalView = (commentId: string, viewName: string) => {
+    const newProvisionalView: ProvisionalView = {
+      id: `provisional-${Date.now()}`,
+      name: viewName,
+      zoom: currentView.zoom,
+      pan: currentView.pan,
+      timestamp: Date.now(),
+      commentId,
+      isProvisional: true,
+    };
+
+    setProvisionalViews(prev => [...prev, newProvisionalView]);
+    
+    // Aggiorna il commento per collegarlo alla vista provvisoria
+    setComments(prev => prev.map(comment => 
+      comment.id === commentId 
+        ? { ...comment, linkedViewId: newProvisionalView.id, isProvisional: true }
+        : comment
+    ));
+  };
+
+  const handleLoadProvisionalView = (view: SavedView | ProvisionalView) => {
+    previewRef.current?.setView(view.zoom, view.pan);
+    setCurrentView({ zoom: view.zoom, pan: view.pan });
+  };
+
+  const handleUnlinkView = (commentId: string) => {
+    const comment = comments.find(c => c.id === commentId);
+    if (comment?.linkedViewId && comment.isProvisional) {
+      // Rimuovi la vista provvisoria
+      setProvisionalViews(prev => prev.filter(v => v.id !== comment.linkedViewId));
+    }
+    
+    // Rimuovi il collegamento dal commento
+    setComments(prev => prev.map(c => 
+      c.id === commentId 
+        ? { ...c, linkedViewId: undefined, isProvisional: undefined }
+        : c
+    ));
+    
+    toast({
+      title: "Vista scollegata",
+      description: "La vista è stata scollegata dal commento",
+    });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-800 animate-fade-in">
       <Header 
@@ -193,19 +263,42 @@ const Index = () => {
           <ResizableHandle withHandle />
           
           <ResizablePanel defaultSize={25} minSize={15} maxSize={50}>
-            <ViewSidebar
-              savedViews={savedViews}
-              onSaveView={handleSaveView}
-              onLoadView={handleLoadView}
-              onDeleteView={handleDeleteView}
-              onResetView={handleResetView}
-              onUpdateViews={handleUpdateViews}
-              setSavedViews={setSavedViews}
-              currentZoom={previewRef.current?.getView()?.zoom || 1}
-              currentPan={previewRef.current?.getView()?.pan || { x: 0, y: 0 }}
-              isCollapsed={!showFooterPanel}
-              onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
-            />
+            <Tabs defaultValue="views" className="h-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="views">Viste</TabsTrigger>
+                <TabsTrigger value="comments">Commenti</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="views" className="h-full mt-0">
+                <ViewSidebar
+                  savedViews={savedViews}
+                  onSaveView={handleSaveView}
+                  onLoadView={handleLoadView}
+                  onDeleteView={handleDeleteView}
+                  onResetView={handleResetView}
+                  onUpdateViews={handleUpdateViews}
+                  setSavedViews={setSavedViews}
+                  currentZoom={previewRef.current?.getView()?.zoom || 1}
+                  currentPan={previewRef.current?.getView()?.pan || { x: 0, y: 0 }}
+                  isCollapsed={!showFooterPanel}
+                  onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
+                />
+              </TabsContent>
+              
+              <TabsContent value="comments" className="h-full mt-0">
+                <CommentsPanel
+                  comments={comments}
+                  provisionalViews={provisionalViews}
+                  savedViews={savedViews}
+                  currentView={currentView}
+                  onAddComment={handleAddComment}
+                  onDeleteComment={handleDeleteComment}
+                  onCreateProvisionalView={handleCreateProvisionalView}
+                  onLoadView={handleLoadProvisionalView}
+                  onUnlinkView={handleUnlinkView}
+                />
+              </TabsContent>
+            </Tabs>
           </ResizablePanel>
         </ResizablePanelGroup>
         
