@@ -208,9 +208,8 @@ const Index = () => {
     ));
   };
 
-  const handleApplyProvisionalViewToSaved = (viewId: string, commentId: string) => {
-    const comment = comments.find(c => c.id === commentId);
-    const provisionalView = provisionalViews.find(v => v.commentId === commentId);
+  const handleApplyProvisionalViewToSaved = (viewId: string, provisionalViewId: string) => {
+    const provisionalView = provisionalViews.find(v => v.id === provisionalViewId);
     
     if (provisionalView) {
       setSavedViews(prev => prev.map(view => 
@@ -218,6 +217,11 @@ const Index = () => {
           ? { ...view, zoom: provisionalView.zoom, pan: provisionalView.pan, timestamp: Date.now() }
           : view
       ));
+      
+      toast({
+        title: "Vista aggiornata",
+        description: `Vista "${savedViews.find(v => v.id === viewId)?.name}" aggiornata con la vista provvisoria`,
+      });
     }
   };
 
@@ -332,6 +336,7 @@ const Index = () => {
                   isCollapsed={!showFooterPanel}
                   onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
                   comments={comments}
+                  provisionalViews={provisionalViews}
                   onCreateCommentForView={handleCreateCommentForView}
                   onUpdateViewToCurrentState={handleUpdateViewToCurrentState}
                   onApplyProvisionalViewToSaved={handleApplyProvisionalViewToSaved}

@@ -1,5 +1,7 @@
 import React from 'react';
 import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, BellOff, Bell, MessageSquare, RefreshCw, Upload } from 'lucide-react';
+import ViewTooltip from '@/components/ViewTooltip';
+import { Comment, ProvisionalView } from '@/types/comments';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,10 +56,11 @@ interface ViewSidebarProps {
   currentPan: { x: number; y: number };
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
-  comments?: any[]; // Array di commenti per contare quelli collegati alle viste
+  comments?: Comment[]; // Array di commenti per contare quelli collegati alle viste
+  provisionalViews?: ProvisionalView[]; // Array di viste provvisorie
   onCreateCommentForView?: (viewId: string) => void; // Callback per creare commento per una vista
   onUpdateViewToCurrentState?: (viewId: string) => void; // Callback per aggiornare vista con stato attuale
-  onApplyProvisionalViewToSaved?: (viewId: string, commentId: string) => void; // Callback per applicare vista provvisoria
+  onApplyProvisionalViewToSaved?: (viewId: string, provisionalViewId: string) => void; // Callback per applicare vista provvisoria
 }
 
 const ViewSidebar: React.FC<ViewSidebarProps> = ({
@@ -73,6 +76,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   isCollapsed = false,
   onToggleCollapse,
   comments = [],
+  provisionalViews = [],
   onCreateCommentForView,
   onUpdateViewToCurrentState,
   onApplyProvisionalViewToSaved,
@@ -334,6 +338,39 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       onCreateCommentForView(viewId);
     }
   };
+
+  // Funzione per applicare una vista provvisoria a una vista salvata
+  const handleApplyProvisionalView = React.useCallback((viewId: string, provisionalViewId?: string) => {
+    const viewProvisionalViews = provisionalViews.filter(pv => 
+      comments.some(c => c.linkedViewId === pv.id && c.viewId === viewId)
+    );
+
+    if (viewProvisionalViews.length > 1) {
+      // Se ci sono più viste provvisorie, mostra un dialogo di selezione
+      const viewNames = viewProvisionalViews.map((pv, index) => `${index + 1}. ${pv.name}`).join('\n');
+      const choice = window.prompt(
+        `Ci sono ${viewProvisionalViews.length} viste provvisorie per questa vista.\nScegli quale applicare:\n\n${viewNames}\n\nInserisci il numero (1-${viewProvisionalViews.length}):`
+      );
+      
+      const choiceIndex = parseInt(choice || '0') - 1;
+      if (choiceIndex >= 0 && choiceIndex < viewProvisionalViews.length) {
+        const selectedView = viewProvisionalViews[choiceIndex];
+        if (onApplyProvisionalViewToSaved) {
+          onApplyProvisionalViewToSaved(viewId, selectedView.id);
+        }
+      }
+    } else if (viewProvisionalViews.length === 1) {
+      // Se c'è solo una vista provvisoria, applicala direttamente
+      if (onApplyProvisionalViewToSaved) {
+        onApplyProvisionalViewToSaved(viewId, viewProvisionalViews[0].id);
+      }
+    } else if (provisionalViewId) {
+      // Se è stata passata una vista provvisoria specifica
+      if (onApplyProvisionalViewToSaved) {
+        onApplyProvisionalViewToSaved(viewId, provisionalViewId);
+      }
+    }
+  }, [provisionalViews, comments, onApplyProvisionalViewToSaved]);
 
   const formatZoom = (zoom: number) => `${Math.round(zoom * 100)}%`;
   const formatPan = (pan: { x: number; y: number }) => 
@@ -746,40 +783,51 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
                   <Eye className="h-3 w-3" />
                 </Button>
                 
-                {/* Icona commenti con contatore */}
+                 {/* Icona commenti con contatore */}
                 {(() => {
                   const commentsCount = getCommentsCount(view.id);
-                  const provisionalComment = comments.find(comment => 
-                    comment.linkedViewId === view.id && comment.isProvisional
+                  const hasProvisionalViews = provisionalViews.some(pv => 
+                    comments.some(c => c.linkedViewId === pv.id && c.viewId === view.id)
                   );
                   
                   return (
                     <div className="flex items-center gap-1">
-                      <div className="relative">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCreateCommentForView(view.id)}
-                          className="h-5 w-5 p-0"
-                          title={commentsCount > 0 ? `${commentsCount} commenti` : "Aggiungi commento"}
-                        >
-                          <MessageSquare className="h-3 w-3" />
-                        </Button>
-                        {commentsCount > 0 && (
-                          <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-3 w-3 flex items-center justify-center text-[8px] font-bold">
-                            {commentsCount > 9 ? '9+' : commentsCount}
-                          </span>
-                        )}
-                      </div>
+                      <ViewTooltip
+                        view={view}
+                        comments={comments}
+                        provisionalViews={provisionalViews}
+                        onLoadView={handleLoadView}
+                        onApplyProvisionalView={handleApplyProvisionalView}
+                      >
+                        <div className="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCreateCommentForView(view.id);
+                            }}
+                            className="h-5 w-5 p-0"
+                            title={commentsCount > 0 ? `${commentsCount} commenti` : "Aggiungi commento"}
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                          </Button>
+                          {commentsCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-3 w-3 flex items-center justify-center text-[8px] font-bold">
+                              {commentsCount > 9 ? '9+' : commentsCount}
+                            </span>
+                          )}
+                        </div>
+                      </ViewTooltip>
                       
                       {/* Icona per applicare vista provvisoria se esiste */}
-                      {provisionalComment && (
+                      {hasProvisionalViews && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onApplyProvisionalViewToSaved && onApplyProvisionalViewToSaved(view.id, provisionalComment.id)}
+                          onClick={() => handleApplyProvisionalView(view.id)}
                           className="h-5 w-5 p-0 hover:bg-primary/10"
-                          title="Applica vista provvisoria del commento"
+                          title="Applica vista provvisoria"
                         >
                           <Upload className="h-3 w-3 text-primary" />
                         </Button>
