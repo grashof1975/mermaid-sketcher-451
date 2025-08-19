@@ -143,10 +143,10 @@ const Index = () => {
         isDarkMode={isDarkMode}
       />
       
-      <div className="flex-1 flex flex-col">
-        <main className="flex-1 container py-6 flex flex-col gap-6">
-          <div className="relative">
-            <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-lg border bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+      <div className="flex-1 flex flex-col relative">
+        <ResizablePanelGroup direction="vertical" className="flex-1">
+          <ResizablePanel defaultSize={75} minSize={50}>
+            <ResizablePanelGroup direction="horizontal" className="rounded-lg border bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm m-6">
               {showLeftPanel && (
                 <>
                   <ResizablePanel defaultSize={35} minSize={25}>
@@ -188,39 +188,37 @@ const Index = () => {
                 </div>
               </ResizablePanel>
             </ResizablePanelGroup>
-            
-            {/* Toggle buttons */}
-            <div className="absolute top-4 left-4 z-20 flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowLeftPanel(!showLeftPanel)}
-                className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-border/50"
-              >
-                {showLeftPanel ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-
-          <AIPrompt 
-            prompt={prompt}
-            onDiagramGenerated={handleDiagramGenerated}
-          />
-        </main>
-
-        {/* Footer with ViewSidebar */}
-        <ViewSidebar
-          savedViews={savedViews}
-          onSaveView={handleSaveView}
-          onLoadView={handleLoadView}
-          onDeleteView={handleDeleteView}
-          onResetView={handleResetView}
-          onUpdateViews={handleUpdateViews}
-          currentZoom={previewRef.current?.getView()?.zoom || 1}
-          currentPan={previewRef.current?.getView()?.pan || { x: 0, y: 0 }}
-          isCollapsed={!showFooterPanel}
-          onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
-        />
+          </ResizablePanel>
+          
+          <ResizableHandle withHandle />
+          
+          <ResizablePanel defaultSize={25} minSize={15} maxSize={50}>
+            <ViewSidebar
+              savedViews={savedViews}
+              onSaveView={handleSaveView}
+              onLoadView={handleLoadView}
+              onDeleteView={handleDeleteView}
+              onResetView={handleResetView}
+              onUpdateViews={handleUpdateViews}
+              currentZoom={previewRef.current?.getView()?.zoom || 1}
+              currentPan={previewRef.current?.getView()?.pan || { x: 0, y: 0 }}
+              isCollapsed={!showFooterPanel}
+              onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+        
+        {/* Toggle buttons */}
+        <div className="absolute top-10 left-10 z-20 flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowLeftPanel(!showLeftPanel)}
+            className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-border/50"
+          >
+            {showLeftPanel ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
     </div>
   );
