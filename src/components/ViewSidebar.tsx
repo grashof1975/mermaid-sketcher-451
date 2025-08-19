@@ -98,10 +98,11 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       
       // Get the drag position data
       const delta = event.delta;
-      const isSmallVerticalMovement = Math.abs(delta.y) < 15; // Soglia per movimento piccolo
+      const isRightwardMovement = delta.x > 20; // Movimento verso destra
+      const isSmallVerticalMovement = Math.abs(delta.y) < 30; // Soglia per movimento piccolo
       
-      if (isSmallVerticalMovement) {
-        // Movimento piccolo = nidificazione (rendere child)
+      if (isRightwardMovement || isSmallVerticalMovement) {
+        // Movimento verso destra o piccolo = nidificazione (rendere child)
         const activeIndex = updatedViews.findIndex(v => v.id === activeId);
         updatedViews[activeIndex] = { ...activeView, parentId: overId };
         
