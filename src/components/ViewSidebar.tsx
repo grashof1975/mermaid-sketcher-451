@@ -1,5 +1,5 @@
 import React from 'react';
-import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react';
+import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, BellOff, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import {
   DndContext,
   closestCenter,
@@ -74,10 +74,21 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   const [dragOverParent, setDragOverParent] = React.useState<string | null>(null);
   const [selectedViewId, setSelectedViewId] = React.useState<string | null>(null);
+  const [toastsEnabled, setToastsEnabled] = React.useState(true);
   
   // History per undo/redo
   const [history, setHistory] = React.useState<SavedView[][]>([savedViews]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = React.useState(0);
+
+  // Helper per toast condizionali
+  const conditionalToast = React.useCallback((toastOptions: any) => {
+    if (toastsEnabled) {
+      toast({
+        ...toastOptions,
+        duration: 1000, // 1 secondo
+      });
+    }
+  }, [toastsEnabled]);
 
   // Funzioni per la gestione della history
   const pushToHistory = React.useCallback((newViews: SavedView[]) => {
@@ -95,12 +106,12 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       const previousState = history[newIndex];
       setCurrentHistoryIndex(newIndex);
       onUpdateViews([...previousState]);
-      toast({
+      conditionalToast({
         title: "Annullato",
         description: "Operazione annullata",
       });
     }
-  }, [currentHistoryIndex, history, onUpdateViews]);
+  }, [currentHistoryIndex, history, onUpdateViews, conditionalToast]);
 
   const redo = React.useCallback(() => {
     if (currentHistoryIndex < history.length - 1) {
@@ -108,12 +119,12 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       const nextState = history[newIndex];
       setCurrentHistoryIndex(newIndex);
       onUpdateViews([...nextState]);
-      toast({
+      conditionalToast({
         title: "Ripristinato",
         description: "Operazione ripristinata",
       });
     }
-  }, [currentHistoryIndex, history, onUpdateViews]);
+  }, [currentHistoryIndex, history, onUpdateViews, conditionalToast]);
 
   // Listener per scorciatoie da tastiera
   React.useEffect(() => {
@@ -200,7 +211,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
         // Expand the parent view to show the new child
         setExpandedGroups(prev => new Set([...prev, overId]));
         
-        toast({
+        conditionalToast({
           title: "Vista nidificata",
           description: `"${activeView.name}" è stata spostata sotto "${overView.name}"`,
         });
@@ -279,7 +290,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
   const handleSaveView = () => {
     if (!newViewName.trim()) {
-      toast({
+      conditionalToast({
         title: "Nome richiesto",
         description: "Inserisci un nome per la vista",
         variant: "destructive",
@@ -290,7 +301,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
     onSaveView(newViewName.trim());
     setNewViewName('');
     
-    toast({
+    conditionalToast({
       title: "Vista salvata",
       description: `Vista "${newViewName}" salvata con successo`,
     });
@@ -298,7 +309,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
   const handleLoadView = (view: SavedView) => {
     onLoadView(view);
-    toast({
+    conditionalToast({
       title: "Vista caricata",
       description: `Vista "${view.name}" caricata`,
     });
