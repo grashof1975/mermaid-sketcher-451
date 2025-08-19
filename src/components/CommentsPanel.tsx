@@ -159,6 +159,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
         ) : (
           comments.map((comment) => {
             const linkedView = getLinkedView(comment);
+            const associatedView = comment.viewId ? savedViews.find(v => v.id === comment.viewId) : null;
             
             return (
               <Card key={comment.id} className="relative">
@@ -167,8 +168,13 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs text-muted-foreground">
-                          {formatTimestamp(comment.timestamp)}
+                        {formatTimestamp(comment.timestamp)}
                         </span>
+                        {associatedView && (
+                          <Badge variant="default" className="text-xs">
+                            Vista: {associatedView.name}
+                          </Badge>
+                        )}
                         {linkedView && (
                           <Badge variant={comment.isProvisional ? "outline" : "secondary"} className="text-xs">
                             {comment.isProvisional ? "Vista provvisoria" : "Vista salvata"}

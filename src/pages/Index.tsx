@@ -150,6 +150,25 @@ const Index = () => {
     setComments(prev => [...prev, newComment]);
   };
 
+  const handleCreateCommentForView = (viewId: string) => {
+    const view = savedViews.find(v => v.id === viewId);
+    if (!view) return;
+
+    const newComment: Comment = {
+      id: `comment-${Date.now()}`,
+      text: `Commento per la vista "${view.name}"`,
+      timestamp: Date.now(),
+      viewId: viewId,
+    };
+    
+    setComments(prev => [...prev, newComment]);
+    
+    toast({
+      title: "Commento creato",
+      description: `Nuovo commento per la vista "${view.name}"`,
+    });
+  };
+
   const handleDeleteComment = (id: string) => {
     const comment = comments.find(c => c.id === id);
     if (comment?.linkedViewId && comment.isProvisional) {
@@ -282,6 +301,8 @@ const Index = () => {
                   currentPan={previewRef.current?.getView()?.pan || { x: 0, y: 0 }}
                   isCollapsed={!showFooterPanel}
                   onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
+                  comments={comments}
+                  onCreateCommentForView={handleCreateCommentForView}
                 />
               </TabsContent>
               

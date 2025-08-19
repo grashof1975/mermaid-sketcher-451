@@ -1,5 +1,5 @@
 import React from 'react';
-import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, BellOff, Bell } from 'lucide-react';
+import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, BellOff, Bell, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,11 +49,13 @@ interface ViewSidebarProps {
   onDeleteView: (id: string) => void;
   onResetView: () => void;
   onUpdateViews: (views: SavedView[]) => void;
-  setSavedViews?: (views: SavedView[]) => void;
+  setSavedViews: React.Dispatch<React.SetStateAction<SavedView[]>>;
   currentZoom: number;
   currentPan: { x: number; y: number };
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  comments?: any[]; // Array di commenti per contare quelli collegati alle viste
+  onCreateCommentForView?: (viewId: string) => void; // Callback per creare commento per una vista
 }
 
 const ViewSidebar: React.FC<ViewSidebarProps> = ({
@@ -67,7 +69,9 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   currentZoom,
   currentPan,
   isCollapsed = false,
-  onToggleCollapse
+  onToggleCollapse,
+  comments = [],
+  onCreateCommentForView,
 }) => {
   const [newViewName, setNewViewName] = React.useState('');
   const [sortOption, setSortOption] = React.useState<SortOption>('date-desc');
@@ -313,6 +317,18 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       title: "Vista caricata",
       description: `Vista "${view.name}" caricata`,
     });
+  };
+
+  // Funzione per contare i commenti collegati a una vista
+  const getCommentsCount = (viewId: string): number => {
+    return comments.filter(comment => comment.viewId === viewId).length;
+  };
+
+  // Funzione per creare un commento per una vista specifica
+  const handleCreateCommentForView = (viewId: string) => {
+    if (onCreateCommentForView) {
+      onCreateCommentForView(viewId);
+    }
   };
 
   const formatZoom = (zoom: number) => `${Math.round(zoom * 100)}%`;
@@ -714,6 +730,30 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
                 >
                   <Eye className="h-3 w-3" />
                 </Button>
+                
+                {/* Icona commenti con contatore */}
+                {(() => {
+                  const commentsCount = getCommentsCount(view.id);
+                  return (
+                    <div className="relative">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCreateCommentForView(view.id)}
+                        className="h-5 w-5 p-0"
+                        title={commentsCount > 0 ? `${commentsCount} commenti` : "Aggiungi commento"}
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                      </Button>
+                      {commentsCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-3 w-3 flex items-center justify-center text-[8px] font-bold">
+                          {commentsCount > 9 ? '9+' : commentsCount}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+                
                 <Button
                   variant="ghost"
                   size="sm"

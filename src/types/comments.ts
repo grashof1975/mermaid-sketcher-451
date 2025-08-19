@@ -4,6 +4,7 @@ export interface Comment {
   timestamp: number;
   linkedViewId?: string; // Vista collegata (può essere provvisoria)
   isProvisional?: boolean; // Se la vista collegata è provvisoria
+  viewId?: string; // Vista a cui è associato il commento
 }
 
 export interface ProvisionalView {
