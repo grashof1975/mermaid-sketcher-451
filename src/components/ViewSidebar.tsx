@@ -255,65 +255,61 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
         break;
       }
       case 'up': {
-        // Sposta verso l'alto nello stesso livello (con tutto il gruppo)
+        // Sposta verso l'alto nello stesso livello
         const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
         const currentIndexInLevel = sameLevel.findIndex(v => v.id === viewId);
         
         if (currentIndexInLevel > 0) {
           const targetView = sameLevel[currentIndexInLevel - 1];
           
-          // Ottieni tutti i figli del gruppo corrente e del gruppo target
+          // Trova tutti gli elementi del gruppo corrente (vista + figli)
           const currentGroup = [view, ...getAllChildren(view.id)];
           const targetGroup = [targetView, ...getAllChildren(targetView.id)];
           
-          // Trova gli indici nell'array principale
-          const currentGroupIndices = currentGroup.map(v => updatedViews.findIndex(item => item.id === v.id));
-          const targetGroupIndices = targetGroup.map(v => updatedViews.findIndex(item => item.id === v.id));
+          // Trova le posizioni nell'array originale
+          const currentStart = updatedViews.findIndex(v => v.id === view.id);
+          const targetStart = updatedViews.findIndex(v => v.id === targetView.id);
           
-          // Rimuovi i gruppi dall'array
-          const filteredViews = updatedViews.filter((_, index) => 
-            !currentGroupIndices.includes(index) && !targetGroupIndices.includes(index)
+          // Rimuovi entrambi i gruppi
+          const withoutGroups = updatedViews.filter(v => 
+            ![...currentGroup, ...targetGroup].some(gv => gv.id === v.id)
           );
           
-          // Trova la posizione di inserimento (dove iniziava il gruppo target)
-          const insertPosition = Math.min(...targetGroupIndices);
+          // Inserisci nell'ordine corretto
+          const insertPos = Math.min(currentStart, targetStart);
+          withoutGroups.splice(insertPos, 0, ...currentGroup, ...targetGroup);
           
-          // Reinserisci i gruppi nell'ordine corretto (current group prima di target group)
-          filteredViews.splice(insertPosition, 0, ...currentGroup, ...targetGroup);
-          
-          onUpdateViews(filteredViews);
+          onUpdateViews(withoutGroups);
           return;
         }
         break;
       }
       case 'down': {
-        // Sposta verso il basso nello stesso livello (con tutto il gruppo)
+        // Sposta verso il basso nello stesso livello
         const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
         const currentIndexInLevel = sameLevel.findIndex(v => v.id === viewId);
         
         if (currentIndexInLevel < sameLevel.length - 1) {
           const targetView = sameLevel[currentIndexInLevel + 1];
           
-          // Ottieni tutti i figli del gruppo corrente e del gruppo target
+          // Trova tutti gli elementi del gruppo corrente (vista + figli)
           const currentGroup = [view, ...getAllChildren(view.id)];
           const targetGroup = [targetView, ...getAllChildren(targetView.id)];
           
-          // Trova gli indici nell'array principale
-          const currentGroupIndices = currentGroup.map(v => updatedViews.findIndex(item => item.id === v.id));
-          const targetGroupIndices = targetGroup.map(v => updatedViews.findIndex(item => item.id === v.id));
+          // Trova le posizioni nell'array originale
+          const currentStart = updatedViews.findIndex(v => v.id === view.id);
+          const targetStart = updatedViews.findIndex(v => v.id === targetView.id);
           
-          // Rimuovi i gruppi dall'array
-          const filteredViews = updatedViews.filter((_, index) => 
-            !currentGroupIndices.includes(index) && !targetGroupIndices.includes(index)
+          // Rimuovi entrambi i gruppi
+          const withoutGroups = updatedViews.filter(v => 
+            ![...currentGroup, ...targetGroup].some(gv => gv.id === v.id)
           );
           
-          // Trova la posizione di inserimento (dove iniziava il gruppo corrente)
-          const insertPosition = Math.min(...currentGroupIndices);
+          // Inserisci nell'ordine corretto
+          const insertPos = Math.min(currentStart, targetStart);
+          withoutGroups.splice(insertPos, 0, ...targetGroup, ...currentGroup);
           
-          // Reinserisci i gruppi nell'ordine corretto (target group prima di current group)
-          filteredViews.splice(insertPosition, 0, ...targetGroup, ...currentGroup);
-          
-          onUpdateViews(filteredViews);
+          onUpdateViews(withoutGroups);
           return;
         }
         break;
