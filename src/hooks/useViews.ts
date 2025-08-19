@@ -18,17 +18,19 @@ export const useViews = (diagramId?: string) => {
       const { data, error } = await supabase
         .from('saved_views')
         .select('*')
-        .eq('diagram_id', diagramId)
-        .eq('user_id', user.id)
+        .eq('diagram_id', diagramId as any)
+        .eq('user_id', user.id as any)
         .order('sort_order', { ascending: true });
 
       if (error) throw error;
 
+      const typedData = (data || []) as unknown as SavedView[];
+
       // Build hierarchical structure
-      const viewsMap = new Map(data.map(view => [view.id, { ...view, children: [] }]));
+      const viewsMap = new Map(typedData.map(view => [view.id, { ...view, children: [] }]));
       const rootViews: SavedView[] = [];
 
-      data.forEach(view => {
+      typedData.forEach(view => {
         const viewWithChildren = viewsMap.get(view.id)!;
         if (view.parent_id) {
           const parent = viewsMap.get(view.parent_id);
@@ -68,12 +70,12 @@ export const useViews = (diagramId?: string) => {
     const { data: maxSortData } = await supabase
       .from('saved_views')
       .select('sort_order')
-      .eq('diagram_id', diagramId)
-      .eq('parent_id', viewData.parent_id || null)
+      .eq('diagram_id', diagramId as any)
+      .eq('parent_id', viewData.parent_id || null as any)
       .order('sort_order', { ascending: false })
       .limit(1);
 
-    const nextSortOrder = (maxSortData?.[0]?.sort_order || 0) + 1;
+    const nextSortOrder = ((maxSortData as any)?.[0]?.sort_order || 0) + 1;
 
     const { data, error } = await supabase
       .from('saved_views')
@@ -82,7 +84,7 @@ export const useViews = (diagramId?: string) => {
         diagram_id: diagramId,
         user_id: user.id,
         sort_order: nextSortOrder,
-      })
+      } as any)
       .select('*')
       .single();
 
@@ -92,7 +94,7 @@ export const useViews = (diagramId?: string) => {
 
     toast({
       title: "View saved",
-      description: `"${data.name}" has been saved successfully.`,
+      description: `"${(data as any).name}" has been saved successfully.`,
     });
 
     return data;
@@ -103,9 +105,9 @@ export const useViews = (diagramId?: string) => {
 
     const { data, error } = await supabase
       .from('saved_views')
-      .update(updates)
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .update(updates as any)
+      .eq('id', id as any)
+      .eq('user_id', user.id as any)
       .select('*')
       .single();
 
@@ -122,8 +124,8 @@ export const useViews = (diagramId?: string) => {
     const { error } = await supabase
       .from('saved_views')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id as any)
+      .eq('user_id', user.id as any);
 
     if (error) throw error;
 
@@ -142,9 +144,9 @@ export const useViews = (diagramId?: string) => {
     const promises = updates.map(({ id, sort_order }) =>
       supabase
         .from('saved_views')
-        .update({ sort_order })
-        .eq('id', id)
-        .eq('user_id', user.id)
+        .update({ sort_order } as any)
+        .eq('id', id as any)
+        .eq('user_id', user.id as any)
     );
 
     await Promise.all(promises);

@@ -44,11 +44,11 @@ export const useSecureApiKeys = () => {
       const { data, error } = await supabase
         .from('user_api_keys')
         .select('id, key_hint, is_active, created_at')
-        .eq('user_id', user.id)
-        .eq('is_active', true);
+        .eq('user_id', user.id as any)
+        .eq('is_active', true as any);
 
       if (error) throw error;
-      setApiKeys(data || []);
+      setApiKeys((data || []) as any);
     } catch (error) {
       console.error('Error loading API keys:', error);
       toast({
@@ -91,7 +91,7 @@ export const useSecureApiKeys = () => {
           encrypted_api_key: encryptedKey,
           key_hint: hint,
           is_active: true
-        });
+        } as any);
 
       if (error) throw error;
 
@@ -120,13 +120,13 @@ export const useSecureApiKeys = () => {
       const { data, error } = await supabase
         .from('user_api_keys')
         .select('encrypted_api_key')
-        .eq('id', keyId)
-        .eq('user_id', user.id)
-        .eq('is_active', true)
+        .eq('id', keyId as any)
+        .eq('user_id', user.id as any)
+        .eq('is_active', true as any)
         .single();
 
       if (error) throw error;
-      return data ? decryptKey(data.encrypted_api_key) : null;
+      return data ? decryptKey((data as any).encrypted_api_key) : null;
     } catch (error) {
       console.error('Error retrieving API key:', error);
       return null;
@@ -139,9 +139,9 @@ export const useSecureApiKeys = () => {
     try {
       const { error } = await supabase
         .from('user_api_keys')
-        .update({ is_active: false })
-        .eq('id', keyId)
-        .eq('user_id', user.id);
+        .update({ is_active: false } as any)
+        .eq('id', keyId as any)
+        .eq('user_id', user.id as any);
 
       if (error) throw error;
 

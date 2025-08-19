@@ -19,7 +19,6 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     detectSessionInUrl: true,
     storageKey: 'sb-auth-token',
     // Prevent redirect vulnerabilities
-    redirectTo: `${window.location.origin}/auth/callback`,
   },
   global: {
     headers: {

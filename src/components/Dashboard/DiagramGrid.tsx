@@ -100,7 +100,7 @@ const DiagramGrid: React.FC<DiagramGridProps> = ({ onSelectDiagram }) => {
           is_public: formData.is_public,
           tags: formData.tags,
         });
-        onSelectDiagram(newDiagram);
+        onSelectDiagram(newDiagram as unknown as Diagram);
       }
       
       setCreateModalOpen(false);

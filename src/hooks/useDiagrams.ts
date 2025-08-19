@@ -22,11 +22,11 @@ export const useDiagrams = () => {
           *,
           profiles:user_id(username, full_name, avatar_url)
         `)
-        .eq('user_id', user.id)
+        .eq('user_id', user.id as any)
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setDiagrams(data || []);
+      setDiagrams((data || []) as unknown as Diagram[]);
     } catch (error) {
       console.error('Error loading diagrams:', error);
       toast({
@@ -53,18 +53,18 @@ export const useDiagrams = () => {
       .insert({
         ...diagram,
         user_id: user.id,
-      })
+      } as any)
       .select('*')
       .single();
 
     if (error) throw error;
 
-    setCurrentDiagram(data);
+    setCurrentDiagram(data as unknown as Diagram);
     await loadDiagrams();
 
     toast({
       title: "Diagram created",
-      description: `"${data.title}" has been created successfully.`,
+      description: `"${(data as unknown as Diagram).title}" has been created successfully.`,
     });
 
     return data;
@@ -75,16 +75,16 @@ export const useDiagrams = () => {
 
     const { data, error } = await supabase
       .from('diagrams')
-      .update(updates)
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .update(updates as any)
+      .eq('id', id as any)
+      .eq('user_id', user.id as any)
       .select('*')
       .single();
 
     if (error) throw error;
 
     if (currentDiagram?.id === id) {
-      setCurrentDiagram(data);
+      setCurrentDiagram(data as unknown as Diagram);
     }
 
     await loadDiagrams();
@@ -98,8 +98,8 @@ export const useDiagrams = () => {
     const { error } = await supabase
       .from('diagrams')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id as any)
+      .eq('user_id', user.id as any);
 
     if (error) throw error;
 
@@ -122,22 +122,24 @@ export const useDiagrams = () => {
     const { data: original, error: fetchError } = await supabase
       .from('diagrams')
       .select('*')
-      .eq('id', id)
+      .eq('id', id as any)
       .single();
 
     if (fetchError) throw fetchError;
+
+    const typedOriginal = original as unknown as Diagram;
 
     // Create duplicate
     const { data, error } = await supabase
       .from('diagrams')
       .insert({
         user_id: user.id,
-        title: `${original.title} (Copy)`,
-        description: original.description,
-        mermaid_code: original.mermaid_code,
+        title: `${typedOriginal.title} (Copy)`,
+        description: typedOriginal.description,
+        mermaid_code: typedOriginal.mermaid_code,
         is_public: false, // Copies are private by default
-        tags: original.tags,
-      })
+        tags: typedOriginal.tags,
+      } as any)
       .select('*')
       .single();
 
@@ -147,7 +149,7 @@ export const useDiagrams = () => {
 
     toast({
       title: "Diagram duplicated",
-      description: `"${data.title}" has been created as a copy.`,
+      description: `"${(data as unknown as Diagram).title}" has been created as a copy.`,
     });
 
     return data;

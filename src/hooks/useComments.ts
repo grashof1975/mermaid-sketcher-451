@@ -22,11 +22,11 @@ export const useComments = (diagramId?: string) => {
           profiles:user_id(username, full_name, avatar_url),
           saved_views:linked_view_id(name)
         `)
-        .eq('diagram_id', diagramId)
+        .eq('diagram_id', diagramId as any)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setComments(data || []);
+      setComments((data || []) as unknown as Comment[]);
     } catch (error) {
       console.error('Error loading comments:', error);
       toast({
@@ -49,7 +49,7 @@ export const useComments = (diagramId?: string) => {
         user_id: user.id,
         text,
         linked_view_id: linkedViewId,
-      })
+      } as any)
       .select(`
         *,
         profiles:user_id(username, full_name, avatar_url),
@@ -59,7 +59,7 @@ export const useComments = (diagramId?: string) => {
 
     if (error) throw error;
 
-    setComments(prev => [data, ...prev]);
+    setComments(prev => [data as unknown as Comment, ...prev]);
 
     toast({
       title: "Comment added",
@@ -74,9 +74,9 @@ export const useComments = (diagramId?: string) => {
 
     const { data, error } = await supabase
       .from('comments')
-      .update({ text })
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .update({ text } as any)
+      .eq('id', id as any)
+      .eq('user_id', user.id as any)
       .select(`
         *,
         profiles:user_id(username, full_name, avatar_url),
@@ -87,7 +87,7 @@ export const useComments = (diagramId?: string) => {
     if (error) throw error;
 
     setComments(prev =>
-      prev.map(comment => comment.id === id ? data : comment)
+      prev.map(comment => comment.id === id ? data as unknown as Comment : comment)
     );
 
     toast({
@@ -104,8 +104,8 @@ export const useComments = (diagramId?: string) => {
     const { error } = await supabase
       .from('comments')
       .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('id', id as any)
+      .eq('user_id', user.id as any);
 
     if (error) throw error;
 
@@ -122,9 +122,9 @@ export const useComments = (diagramId?: string) => {
 
     const { data, error } = await supabase
       .from('comments')
-      .update({ is_resolved })
-      .eq('id', id)
-      .eq('user_id', user.id)
+      .update({ is_resolved } as any)
+      .eq('id', id as any)
+      .eq('user_id', user.id as any)
       .select(`
         *,
         profiles:user_id(username, full_name, avatar_url),
@@ -135,7 +135,7 @@ export const useComments = (diagramId?: string) => {
     if (error) throw error;
 
     setComments(prev =>
-      prev.map(comment => comment.id === id ? data : comment)
+      prev.map(comment => comment.id === id ? data as unknown as Comment : comment)
     );
 
     return data;

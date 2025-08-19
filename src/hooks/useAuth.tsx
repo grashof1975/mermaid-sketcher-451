@@ -122,11 +122,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', userId as any)
         .single();
 
       if (error) throw error;
-      setProfile(data);
+      setProfile(data as unknown as UserProfile);
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {
@@ -253,8 +253,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const { error } = await supabase
       .from('profiles')
-      .update(updates)
-      .eq('id', user.id);
+      .update(updates as any)
+      .eq('id', user.id as any);
 
     if (error) throw error;
 
