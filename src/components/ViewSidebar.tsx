@@ -197,6 +197,9 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
     return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
+  const [editingViewId, setEditingViewId] = React.useState<string | null>(null);
+  const [editingName, setEditingName] = React.useState<string>('');
+
   const SortableViewRow: React.FC<{ view: SavedView; level?: number }> = ({ view, level = 0 }) => {
     const {
       attributes,
@@ -216,6 +219,36 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
     const isExpanded = expandedGroups.has(view.id);
     const childViews = organizedViews.groupedViews[view.id] || [];
     const hasChildren = childViews.length > 0;
+    const isEditing = editingViewId === view.id;
+
+    const handleStartEdit = () => {
+      setEditingViewId(view.id);
+      setEditingName(view.name);
+    };
+
+    const handleSaveEdit = () => {
+      if (editingName.trim()) {
+        const updatedViews = savedViews.map(v => 
+          v.id === view.id ? { ...v, name: editingName.trim() } : v
+        );
+        onUpdateViews(updatedViews);
+      }
+      setEditingViewId(null);
+      setEditingName('');
+    };
+
+    const handleCancelEdit = () => {
+      setEditingViewId(null);
+      setEditingName('');
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        handleSaveEdit();
+      } else if (e.key === 'Escape') {
+        handleCancelEdit();
+      }
+    };
 
     return (
       <div ref={setNodeRef} style={style}>
@@ -239,32 +272,55 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
               <div className="w-5" /> // Spacer to maintain alignment
             )}
             
-            <Eye className="h-3 w-3 text-muted-foreground" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleLoadView(view)}
+              className="h-5 w-5 p-0 hover:bg-primary/10"
+              title="Applica vista"
+            >
+              <Eye className="h-3 w-3 text-primary" />
+            </Button>
             
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-sm truncate flex-1">
-                    {truncateText(view.name, 15)}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="space-y-1">
-                    <p className="font-medium">{view.name}</p>
-                    <p className="text-xs">Zoom: {formatZoom(view.zoom)}</p>
-                    <p className="text-xs">Posizione: {formatPan(view.pan)}</p>
-                    <p className="text-xs">
-                      {new Date(view.timestamp).toLocaleDateString('it-IT', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {isEditing ? (
+              <Input
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleSaveEdit}
+                className="h-6 text-xs px-1 flex-1"
+                autoFocus
+              />
+            ) : (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span 
+                      className="text-sm truncate flex-1 cursor-pointer hover:text-primary"
+                      onClick={handleStartEdit}
+                      title="Clicca per modificare"
+                    >
+                      {truncateText(view.name, 15)}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="space-y-1">
+                      <p className="font-medium">{view.name}</p>
+                      <p className="text-xs">Zoom: {formatZoom(view.zoom)}</p>
+                      <p className="text-xs">Posizione: {formatPan(view.pan)}</p>
+                      <p className="text-xs">
+                        {new Date(view.timestamp).toLocaleDateString('it-IT', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             
             <span className="text-xs text-muted-foreground">
               {formatZoom(view.zoom)}
@@ -272,22 +328,28 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
           </div>
           
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleLoadView(view)}
-              className="h-5 w-5 p-0"
-            >
-              <Eye className="h-3 w-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDeleteView(view.id)}
-              className="h-5 w-5 p-0 text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            {!isEditing && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleLoadView(view)}
+                  className="h-5 w-5 p-0"
+                  title="Applica vista"
+                >
+                  <Eye className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDeleteView(view.id)}
+                  className="h-5 w-5 p-0 text-destructive hover:text-destructive"
+                  title="Elimina vista"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
         
