@@ -1,18 +1,33 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
+interface PromptRecommendation {
+  prompt_key: string;
+  template: string;
+  category: string;
+  complexity: string;
+  tokens_avg: number;
+  success_rate: number;
+  usage_count: number;
+}
+
 export const generateMermaidDiagram = async (prompt: string): Promise<string> => {
   // First, try to get an optimized prompt template
-  const { data: promptTemplate } = await supabase
+  const { data: promptTemplate, error: promptError } = await supabase
     .rpc('get_prompt_recommendation', {
       description_text: prompt,
       preferred_category: null
     });
 
   // Use the optimized template if available
-  const optimizedPrompt = promptTemplate?.template 
-    ? promptTemplate.template.replace('{description}', prompt)
-    : `Create a mermaid diagram for: ${prompt}. Use appropriate diagram type (flowchart, sequence, class, etc.) based on the description.`;
+  let optimizedPrompt = `Create a mermaid diagram for: ${prompt}. Use appropriate diagram type (flowchart, sequence, class, etc.) based on the description.`;
+  
+  if (promptTemplate && typeof promptTemplate === 'object' && promptTemplate !== null) {
+    const recommendation = promptTemplate as PromptRecommendation;
+    if (recommendation.template) {
+      optimizedPrompt = recommendation.template.replace('{description}', prompt);
+    }
+  }
 
   // Get user's API key from Supabase
   const { data: { user } } = await supabase.auth.getUser();
@@ -98,13 +113,16 @@ export const generateMermaidDiagram = async (prompt: string): Promise<string> =>
           });
 
         // Update prompt pool usage stats if we used a template
-        if (promptTemplate?.prompt_key) {
-          await supabase
-            .from('prompt_pool')
-            .update({ 
-              usage_count: (promptTemplate.usage_count || 0) + 1 
-            })
-            .eq('prompt_key', promptTemplate.prompt_key);
+        if (promptTemplate && typeof promptTemplate === 'object' && promptTemplate !== null) {
+          const recommendation = promptTemplate as PromptRecommendation;
+          if (recommendation.prompt_key) {
+            await supabase
+              .from('prompt_pool')
+              .update({ 
+                usage_count: (recommendation.usage_count || 0) + 1 
+              })
+              .eq('prompt_key', recommendation.prompt_key);
+          }
         }
       }
     }

@@ -1,345 +1,274 @@
-import React, { useState, useEffect } from 'react';
-import { MessageSquare, Plus, Trash2, Eye, Link, Unlink, Edit, Check, X } from 'lucide-react';
+
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Comment, ProvisionalView } from '@/types/comments';
-import { SavedView } from '@/components/ViewSidebar';
-import { toast } from '@/hooks/use-toast';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  MessageCircle, 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  Check, 
+  X,
+  Eye,
+  Link as LinkIcon
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { useComments } from '@/hooks/useComments';
+import { useViews } from '@/hooks/useViews';
+import { PreviewRef } from '@/components/Preview';
 
 interface CommentsPanelProps {
-  comments: Comment[];
-  provisionalViews: ProvisionalView[];
-  savedViews: SavedView[];
-  currentView: { zoom: number; pan: { x: number; y: number } };
-  onAddComment: (comment: Omit<Comment, 'id' | 'timestamp'>) => void;
-  onDeleteComment: (id: string) => void;
-  onEditComment: (commentId: string, newText: string) => void;
-  onCreateProvisionalView: (commentId: string, viewName: string) => void;
-  onLoadView: (view: SavedView | ProvisionalView) => void;
-  onUnlinkView: (commentId: string) => void;
-  pendingViewId?: string | null;
+  diagramId: string;
+  previewRef: React.RefObject<PreviewRef>;
 }
 
 const CommentsPanel: React.FC<CommentsPanelProps> = ({
-  comments,
-  provisionalViews,
-  savedViews,
-  currentView,
-  onAddComment,
-  onDeleteComment,
-  onEditComment,
-  onCreateProvisionalView,
-  onLoadView,
-  onUnlinkView,
-  pendingViewId,
+  diagramId,
+  previewRef
 }) => {
+  const { comments, createComment, updateComment, deleteComment } = useComments(diagramId);
+  const { views } = useViews(diagramId);
   const [newCommentText, setNewCommentText] = useState('');
-  const [isAddingComment, setIsAddingComment] = useState(false);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
+  const [editingComment, setEditingComment] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
-  // Effect per aprire automaticamente il form quando c'è un pendingViewId
-  useEffect(() => {
-    if (pendingViewId) {
-      const view = savedViews.find(v => v.id === pendingViewId);
-      if (view) {
-        setNewCommentText(`Commento per la vista "${view.name}": `);
-        setIsAddingComment(true);
-      }
-    }
-  }, [pendingViewId, savedViews]);
-
-  const handleAddComment = () => {
-    if (!newCommentText.trim()) {
-      toast({
-        title: "Errore",
-        description: "Inserisci un testo per il commento",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    onAddComment({
-      text: newCommentText.trim(),
+  const handleCreateComment = async () => {
+    if (!newCommentText.trim()) return;
+    
+    await createComment({
+      text: newCommentText,
+      is_resolved: false
     });
-
+    
     setNewCommentText('');
-    setIsAddingComment(false);
-    
-    toast({
-      title: "Commento aggiunto",
-      description: "Il commento è stato salvato",
-    });
   };
 
-  const handleCreateProvisionalView = (commentId: string) => {
-    const comment = comments.find(c => c.id === commentId);
-    if (!comment) return;
-
-    const viewName = `Vista per: ${comment.text.substring(0, 30)}${comment.text.length > 30 ? '...' : ''}`;
-    onCreateProvisionalView(commentId, viewName);
-    
-    toast({
-      title: "Vista provvisoria creata",
-      description: `Vista "${viewName}" collegata al commento`,
-    });
+  const handleEditComment = (comment: any) => {
+    setEditingComment(comment.id);
+    setEditText(comment.text);
   };
 
-  const handleEditComment = (commentId: string) => {
-    const comment = comments.find(c => c.id === commentId);
-    if (comment) {
-      setEditingCommentId(commentId);
-      setEditingText(comment.text);
-    }
-  };
-
-  const handleSaveEdit = () => {
-    if (!editingText.trim() || !editingCommentId) return;
+  const handleSaveEdit = async () => {
+    if (!editingComment || !editText.trim()) return;
     
-    onEditComment(editingCommentId, editingText.trim());
-    setEditingCommentId(null);
-    setEditingText('');
+    await updateComment(editingComment, { text: editText });
+    setEditingComment(null);
+    setEditText('');
   };
 
   const handleCancelEdit = () => {
-    setEditingCommentId(null);
-    setEditingText('');
+    setEditingComment(null);
+    setEditText('');
   };
 
-  const getLinkedView = (comment: Comment): SavedView | ProvisionalView | null => {
-    if (!comment.linkedViewId) return null;
-    
-    if (comment.isProvisional) {
-      return provisionalViews.find(v => v.id === comment.linkedViewId) || null;
-    } else {
-      return savedViews.find(v => v.id === comment.linkedViewId) || null;
+  const handleDeleteComment = async (commentId: string) => {
+    await deleteComment(commentId);
+  };
+
+  const handleToggleResolved = async (comment: any) => {
+    await updateComment(comment.id, { is_resolved: !comment.is_resolved });
+  };
+
+  const handleLinkToView = async (comment: any, viewId: string) => {
+    await updateComment(comment.id, { linked_view_id: viewId });
+  };
+
+  const handleLoadLinkedView = (viewId: string) => {
+    const view = views.find(v => v.id === viewId);
+    if (view && previewRef.current) {
+      previewRef.current.setView(view.zoom_level, { x: view.pan_x, y: view.pan_y });
     }
   };
 
-  const formatTimestamp = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const getLinkedView = (viewId: string | null) => {
+    return viewId ? views.find(v => v.id === viewId) : null;
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5" />
-          <h3 className="font-semibold">Commenti</h3>
-          <Badge variant="secondary">{comments.length}</Badge>
+    <div className="h-full flex flex-col bg-background">
+      {/* Add New Comment */}
+      <div className="p-4 border-b border-slate-200 dark:border-slate-800">
+        <div className="space-y-2">
+          <Textarea
+            placeholder="Add a comment..."
+            value={newCommentText}
+            onChange={(e) => setNewCommentText(e.target.value)}
+            className="min-h-[60px] resize-none"
+          />
+          <Button 
+            onClick={handleCreateComment}
+            disabled={!newCommentText.trim()}
+            className="w-full"
+            size="sm"
+          >
+            <MessageCircle className="mr-2 h-4 w-4" />
+            Add Comment
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsAddingComment(!isAddingComment)}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo
-        </Button>
       </div>
 
-      {isAddingComment && (
-        <Card>
-          <CardContent className="pt-4">
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="comment-text">Testo del commento</Label>
-                <Textarea
-                  id="comment-text"
-                  value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
-                  placeholder="Scrivi il tuo commento..."
-                  className="mt-1"
-                  rows={3}
-                />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setIsAddingComment(false);
-                    setNewCommentText('');
-                  }}
-                >
-                  Annulla
-                </Button>
-                <Button size="sm" onClick={handleAddComment}>
-                  Salva
-                </Button>
-              </div>
+      {/* Comments List */}
+      <ScrollArea className="flex-1">
+        <div className="p-2">
+          {comments.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No comments yet</p>
+              <p className="text-sm">Add your first comment above</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Separator />
-
-      <div className="space-y-3">
-        {comments.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8">
-            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p>Nessun commento ancora</p>
-            <p className="text-sm">Aggiungi il primo commento al tuo diagramma</p>
-          </div>
-        ) : (
-          comments.map((comment) => {
-            const linkedView = getLinkedView(comment);
-            const associatedView = comment.viewId ? savedViews.find(v => v.id === comment.viewId) : null;
-            
-            return (
-              <Card key={comment.id} className="relative">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs text-muted-foreground">
-                        {formatTimestamp(comment.timestamp)}
-                        </span>
-                        {associatedView && (
-                          <Badge variant="default" className="text-xs">
-                            Vista: {associatedView.name}
-                          </Badge>
-                        )}
-                        {linkedView && (
-                          <Badge variant={comment.isProvisional ? "outline" : "secondary"} className="text-xs">
-                            {comment.isProvisional ? "Vista provvisoria" : "Vista salvata"}
-                          </Badge>
+          ) : (
+            <div className="space-y-3">
+              {comments.map((comment) => {
+                const linkedView = getLinkedView(comment.linked_view_id);
+                const isEditing = editingComment === comment.id;
+                
+                return (
+                  <div
+                    key={comment.id}
+                    className={cn(
+                      "group p-3 rounded-lg border",
+                      comment.is_resolved 
+                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" 
+                        : "bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={comment.profile?.avatar_url || undefined} />
+                        <AvatarFallback className="text-xs">
+                          {comment.profile?.username?.[0]?.toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium">
+                            {comment.profile?.username || 'Unknown User'}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(comment.created_at).toLocaleDateString()}
+                          </span>
+                          {comment.is_resolved && (
+                            <Badge variant="outline" className="text-xs bg-green-100 text-green-700">
+                              Resolved
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <Textarea
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                              className="min-h-[60px] resize-none"
+                            />
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={handleSaveEdit}>
+                                <Check className="h-3 w-3 mr-1" />
+                                Save
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={handleCancelEdit}
+                              >
+                                <X className="h-3 w-3 mr-1" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
+                              {comment.text}
+                            </p>
+                            
+                            {linkedView && (
+                              <div 
+                                className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                                onClick={() => handleLoadLinkedView(linkedView.id)}
+                              >
+                                <Eye className="h-3 w-3 text-blue-600" />
+                                <span className="text-xs text-blue-600 font-medium">
+                                  {linkedView.name}
+                                </span>
+                                <span className="text-xs text-blue-500">
+                                  {Math.round(linkedView.zoom_level * 100)}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
-                      {editingCommentId === comment.id ? (
-                        <Textarea
-                          value={editingText}
-                          onChange={(e) => setEditingText(e.target.value)}
-                          className="mt-2"
-                          rows={3}
-                        />
-                      ) : (
-                        <p className="text-sm">{comment.text}</p>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      {editingCommentId === comment.id ? (
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleSaveEdit}
-                            className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
-                          >
-                            <Check className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCancelEdit}
-                            className="h-6 w-6 p-0 text-gray-600 hover:text-gray-700"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditComment(comment.id)}
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
-                        >
-                          <Edit className="h-3 w-3" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onDeleteComment(comment.id)}
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="pt-0">
-                  <div className="flex items-center gap-2">
-                    {linkedView ? (
-                      <>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onLoadView(linkedView)}
-                                className="flex-1"
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                {linkedView.name}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Carica questa vista</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onUnlinkView(comment.id)}
-                                className="text-muted-foreground hover:text-destructive"
-                              >
-                                <Unlink className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Scollega vista dal commento</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </>
-                    ) : (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
+                      
+                      {!isEditing && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
                               size="sm"
-                              onClick={() => handleCreateProvisionalView(comment.id)}
-                              className="flex-1"
+                              className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
                             >
-                              <Link className="h-4 w-4 mr-2" />
-                              Crea vista provvisoria
+                              <Edit3 className="h-3 w-3" />
                             </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Crea una vista provvisoria con la posizione e zoom attuali</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditComment(comment)}>
+                              <Edit3 className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleToggleResolved(comment)}>
+                              <Check className="mr-2 h-4 w-4" />
+                              {comment.is_resolved ? 'Mark Unresolved' : 'Mark Resolved'}
+                            </DropdownMenuItem>
+                            
+                            {views.length > 0 && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem disabled className="text-xs font-medium">
+                                  Link to View:
+                                </DropdownMenuItem>
+                                {views.slice(0, 5).map((view) => (
+                                  <DropdownMenuItem 
+                                    key={view.id}
+                                    onClick={() => handleLinkToView(comment, view.id)}
+                                  >
+                                    <LinkIcon className="mr-2 h-3 w-3" />
+                                    <span className="truncate">{view.name}</span>
+                                  </DropdownMenuItem>
+                                ))}
+                              </>
+                            )}
+                            
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
     </div>
   );
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import Header from '@/components/Header';
 import Editor from '@/components/Editor';
@@ -21,10 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { PreviewRef } from '@/components/Preview';
 import { useViews } from '@/hooks/useViews';
 import { useComments } from '@/hooks/useComments';
-
-interface IndexProps {
-  
-}
 
 const Index = () => {
   const { user } = useAuth();
