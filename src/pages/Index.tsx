@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from '@/components/Header';
 import Editor from '@/components/Editor';
-import Preview from '@/components/Preview';
+import Preview, { PreviewRef } from '@/components/Preview';
 import AIPrompt from '@/components/AIPrompt';
+import ViewSidebar, { SavedView } from '@/components/ViewSidebar';
 import { toast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -20,6 +21,9 @@ const Index = () => {
   const [code, setCode] = useState<string>(DEFAULT_DIAGRAM);
   const [prompt, setPrompt] = useState<string>("");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [currentView, setCurrentView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
+  const previewRef = useRef<PreviewRef>(null);
 
   // Initialize theme on component mount
   useEffect(() => {
@@ -94,6 +98,36 @@ const Index = () => {
     setCode(generatedCode);
   };
 
+  // View management functions
+  const handleViewChange = (zoom: number, pan: { x: number; y: number }) => {
+    setCurrentView({ zoom, pan });
+  };
+
+  const handleSaveView = (name: string) => {
+    const newView: SavedView = {
+      id: `view-${Date.now()}`,
+      name,
+      zoom: currentView.zoom,
+      pan: currentView.pan,
+      timestamp: Date.now()
+    };
+    setSavedViews(prev => [...prev, newView]);
+  };
+
+  const handleLoadView = (view: SavedView) => {
+    previewRef.current?.setView(view.zoom, view.pan);
+    setCurrentView({ zoom: view.zoom, pan: view.pan });
+  };
+
+  const handleDeleteView = (id: string) => {
+    setSavedViews(prev => prev.filter(view => view.id !== id));
+  };
+
+  const handleResetView = () => {
+    previewRef.current?.resetView();
+    setCurrentView({ zoom: 1, pan: { x: 0, y: 0 } });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-800 animate-fade-in">
       <Header 
@@ -103,32 +137,49 @@ const Index = () => {
       />
       
       <main className="flex-1 container py-6 flex flex-col gap-6">
-        <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-lg border bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
-          <ResizablePanel defaultSize={50} minSize={30}>
-            <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0">
-              <Editor 
-                value={code} 
-                onChange={setCode} 
-                className="flex-1"
-                promptValue={prompt}
-                onPromptChange={setPrompt}
-              />
-              <Separator className="my-4" />
-              <AIPrompt 
-                prompt={prompt} 
-                onDiagramGenerated={handleDiagramGenerated} 
-              />
-            </div>
-          </ResizablePanel>
+        <div className="flex-1 flex gap-6">
+          <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-lg border bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+            <ResizablePanel defaultSize={40} minSize={25}>
+              <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0">
+                <Editor 
+                  value={code} 
+                  onChange={setCode} 
+                  className="flex-1"
+                  promptValue={prompt}
+                  onPromptChange={setPrompt}
+                />
+                <Separator className="my-4" />
+                <AIPrompt 
+                  prompt={prompt} 
+                  onDiagramGenerated={handleDiagramGenerated} 
+                />
+              </div>
+            </ResizablePanel>
+            
+            <ResizableHandle withHandle />
+            
+            <ResizablePanel defaultSize={60} minSize={35}>
+              <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0" style={{ animationDelay: '100ms' }}>
+                <Preview 
+                  ref={previewRef}
+                  code={code} 
+                  className="flex-1" 
+                  onViewChange={handleViewChange}
+                />
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
           
-          <ResizableHandle withHandle />
-          
-          <ResizablePanel defaultSize={50} minSize={30}>
-            <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0" style={{ animationDelay: '100ms' }}>
-              <Preview code={code} className="flex-1" />
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          <ViewSidebar
+            savedViews={savedViews}
+            onSaveView={handleSaveView}
+            onLoadView={handleLoadView}
+            onDeleteView={handleDeleteView}
+            onResetView={handleResetView}
+            currentZoom={currentView.zoom}
+            currentPan={currentView.pan}
+          />
+        </div>
         
         <div className="glass-panel p-4 text-center text-sm text-slate-500 dark:text-slate-400 animate-slide-in" style={{ animationDelay: '200ms' }}>
           <p>

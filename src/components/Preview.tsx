@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import mermaid from 'mermaid';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -7,9 +7,16 @@ import { cn } from '@/lib/utils';
 interface PreviewProps {
   code: string;
   className?: string;
+  onViewChange?: (zoom: number, pan: { x: number; y: number }) => void;
 }
 
-const Preview: React.FC<PreviewProps> = ({ code, className }) => {
+export interface PreviewRef {
+  setView: (zoom: number, pan: { x: number; y: number }) => void;
+  resetView: () => void;
+  getView: () => { zoom: number; pan: { x: number; y: number } };
+}
+
+const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewChange }, ref) => {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -19,6 +26,20 @@ const Preview: React.FC<PreviewProps> = ({ code, className }) => {
   const [lastMousePos, setLastMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  
+  // Expose functions via ref
+  useImperativeHandle(ref, () => ({
+    setView: (newZoom: number, newPan: { x: number; y: number }) => {
+      setZoom(newZoom);
+      setPan(newPan);
+    },
+    resetView: () => {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      onViewChange?.(1, { x: 0, y: 0 });
+    },
+    getView: () => ({ zoom, pan })
+  }), [zoom, pan, onViewChange]);
   
   useEffect(() => {
     // Initialize mermaid with custom config
@@ -80,7 +101,8 @@ const Preview: React.FC<PreviewProps> = ({ code, className }) => {
 
     setZoom(newZoom);
     setPan({ x: newPanX, y: newPanY });
-  }, [zoom, pan]);
+    onViewChange?.(newZoom, { x: newPanX, y: newPanY });
+  }, [zoom, pan, onViewChange]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 0) { // Left mouse button
@@ -96,13 +118,17 @@ const Preview: React.FC<PreviewProps> = ({ code, className }) => {
     const deltaX = e.clientX - lastMousePos.x;
     const deltaY = e.clientY - lastMousePos.y;
 
-    setPan(prev => ({
-      x: prev.x + deltaX,
-      y: prev.y + deltaY
-    }));
+    setPan(prevPan => {
+      const newPan = {
+        x: prevPan.x + deltaX,
+        y: prevPan.y + deltaY
+      };
+      onViewChange?.(zoom, newPan);
+      return newPan;
+    });
 
     setLastMousePos({ x: e.clientX, y: e.clientY });
-  }, [isDragging, lastMousePos]);
+  }, [isDragging, lastMousePos, zoom, onViewChange]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -111,7 +137,8 @@ const Preview: React.FC<PreviewProps> = ({ code, className }) => {
   const resetView = useCallback(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  }, []);
+    onViewChange?.(1, { x: 0, y: 0 });
+  }, [onViewChange]);
 
   // Event listeners
   useEffect(() => {
@@ -188,6 +215,8 @@ const Preview: React.FC<PreviewProps> = ({ code, className }) => {
       </div>
     </div>
   );
-};
+});
+
+Preview.displayName = 'Preview';
 
 export default Preview;
