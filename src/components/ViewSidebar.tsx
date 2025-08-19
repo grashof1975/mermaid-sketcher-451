@@ -96,64 +96,15 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
       const updatedViews = [...savedViews];
       
-      // If dropping on a folder, make it a child
-      if (overView.isFolder) {
-        const activeIndex = updatedViews.findIndex(v => v.id === activeId);
-        updatedViews[activeIndex] = { ...activeView, parentId: overId };
-        // Expand the folder when dropping into it
-        setExpandedGroups(prev => new Set([...prev, overId]));
-        onUpdateViews(updatedViews);
-      } else {
-        // If dropping a folder on a regular view, create a new folder
-        if (activeView.isFolder) {
-          // Just reorder folders
-          const oldIndex = updatedViews.findIndex(v => v.id === activeId);
-          const newIndex = updatedViews.findIndex(v => v.id === overId);
-          const reorderedViews = arrayMove(updatedViews, oldIndex, newIndex);
-          onUpdateViews(reorderedViews);
-        } else {
-          // Create a new folder if dropping a view on another view
-          const newFolderId = `folder-${Date.now()}`;
-          const newFolder: SavedView = {
-            id: newFolderId,
-            name: `Gruppo ${Math.floor(Math.random() * 1000)}`,
-            zoom: 1,
-            pan: { x: 0, y: 0 },
-            timestamp: Date.now(),
-            isFolder: true,
-            expanded: true
-          };
-
-          // Remove both views from root and add them as children
-          const filteredViews = updatedViews.filter(v => v.id !== activeId && v.id !== overId);
-          const activeWithParent = { ...activeView, parentId: newFolderId };
-          const overWithParent = { ...overView, parentId: newFolderId };
-          
-          const newViews = [...filteredViews, newFolder, activeWithParent, overWithParent];
-          setExpandedGroups(prev => new Set([...prev, newFolderId]));
-          onUpdateViews(newViews);
-        }
-      }
+      // Make the dragged view a child of the target view
+      const activeIndex = updatedViews.findIndex(v => v.id === activeId);
+      updatedViews[activeIndex] = { ...activeView, parentId: overId };
+      
+      // Expand the parent view to show the new child
+      setExpandedGroups(prev => new Set([...prev, overId]));
+      
+      onUpdateViews(updatedViews);
     }
-  };
-
-  const createNewFolder = () => {
-    const newFolder: SavedView = {
-      id: `folder-${Date.now()}`,
-      name: `Nuova Cartella`,
-      zoom: 1,
-      pan: { x: 0, y: 0 },
-      timestamp: Date.now(),
-      isFolder: true,
-      expanded: true
-    };
-    const newViews = [...savedViews, newFolder];
-    if (setSavedViews) {
-      setSavedViews(newViews);
-    } else {
-      onUpdateViews(newViews);
-    }
-    setExpandedGroups(prev => new Set([...prev, newFolder.id]));
   };
 
   // Organize views into hierarchical structure
@@ -264,115 +215,90 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
     const isExpanded = expandedGroups.has(view.id);
     const childViews = organizedViews.groupedViews[view.id] || [];
-
-    if (view.isFolder) {
-      return (
-        <div ref={setNodeRef} style={style}>
-          <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(view.id)}>
-            <CollapsibleTrigger asChild>
-              <div 
-                className="flex items-center gap-2 p-1 hover:bg-muted/50 rounded cursor-pointer group"
-                style={{ paddingLeft: `${level * 12}px` }}
-              >
-                <div {...attributes} {...listeners} className="cursor-grab hover:cursor-grabbing">
-                  <GripVertical className="h-3 w-3 text-muted-foreground" />
-                </div>
-                <CollapsibleTrigger className="flex items-center gap-2 flex-1">
-                  {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                  {isExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="text-sm font-medium truncate flex-1">
-                          {truncateText(view.name, 15)}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{view.name}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </CollapsibleTrigger>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteView(view.id);
-                  }}
-                  className="h-5 w-5 p-0 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              {childViews.map(childView => (
-                <SortableViewRow key={childView.id} view={childView} level={level + 1} />
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-      );
-    }
+    const hasChildren = childViews.length > 0;
 
     return (
-      <div 
-        ref={setNodeRef}
-        style={style}
-        className="flex items-center gap-2 p-1 hover:bg-muted/50 rounded group"
-        {...attributes}
-      >
-        <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft: `${level * 12}px` }}>
-          <div {...listeners} className="cursor-grab hover:cursor-grabbing">
-            <GripVertical className="h-3 w-3 text-muted-foreground" />
+      <div ref={setNodeRef} style={style}>
+        <div className="flex items-center gap-2 p-1 hover:bg-muted/50 rounded group">
+          <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft: `${level * 12}px` }}>
+            <div {...attributes} {...listeners} className="cursor-grab hover:cursor-grabbing">
+              <GripVertical className="h-3 w-3 text-muted-foreground" />
+            </div>
+            
+            {/* Collapse/Expand button - only show if has children */}
+            {hasChildren ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleGroup(view.id)}
+                className="h-5 w-5 p-0"
+              >
+                {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              </Button>
+            ) : (
+              <div className="w-5" /> // Spacer to maintain alignment
+            )}
+            
+            <Eye className="h-3 w-3 text-muted-foreground" />
+            
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-sm truncate flex-1">
+                    {truncateText(view.name, 15)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="space-y-1">
+                    <p className="font-medium">{view.name}</p>
+                    <p className="text-xs">Zoom: {formatZoom(view.zoom)}</p>
+                    <p className="text-xs">Posizione: {formatPan(view.pan)}</p>
+                    <p className="text-xs">
+                      {new Date(view.timestamp).toLocaleDateString('it-IT', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            
+            <span className="text-xs text-muted-foreground">
+              {formatZoom(view.zoom)}
+            </span>
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-sm truncate flex-1">
-                  {truncateText(view.name, 15)}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="space-y-1">
-                  <p className="font-medium">{view.name}</p>
-                  <p className="text-xs">Zoom: {formatZoom(view.zoom)}</p>
-                  <p className="text-xs">Posizione: {formatPan(view.pan)}</p>
-                  <p className="text-xs">
-                    {new Date(view.timestamp).toLocaleDateString('it-IT', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <span className="text-xs text-muted-foreground">
-            {formatZoom(view.zoom)}
-          </span>
+          
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleLoadView(view)}
+              className="h-5 w-5 p-0"
+            >
+              <Eye className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDeleteView(view.id)}
+              className="h-5 w-5 p-0 text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleLoadView(view)}
-            className="h-5 w-5 p-0"
-          >
-            <Eye className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onDeleteView(view.id)}
-            className="h-5 w-5 p-0 text-destructive hover:text-destructive"
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </div>
+        
+        {/* Render children if expanded */}
+        {hasChildren && isExpanded && (
+          <div className="space-y-1">
+            {childViews.map(childView => (
+              <SortableViewRow key={childView.id} view={childView} level={level + 1} />
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -451,21 +377,16 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveView()}
                   className="flex-1 h-7 text-xs"
                 />
-                <Button onClick={handleSaveView} size="sm" className="h-7 w-7 p-0">
-                  <Save className="h-3 w-3" />
-                </Button>
-              </div>
               <Button 
-                onClick={createNewFolder} 
-                variant="outline" 
+                onClick={handleSaveView} 
                 size="sm" 
-                className="w-full h-7 text-xs"
+                className="h-7 w-7 p-0"
               >
-                <Folder className="h-3 w-3 mr-1" />
-                Nuova Cartella
+                <Save className="h-3 w-3" />
               </Button>
             </div>
-          </ResizablePanel>
+          </div>
+        </ResizablePanel>
 
           <ResizableHandle withHandle />
 
