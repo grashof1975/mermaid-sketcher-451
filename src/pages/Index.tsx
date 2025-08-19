@@ -198,7 +198,27 @@ const Index = () => {
 
   const handleLoadProvisionalView = (view: SavedView | ProvisionalView) => {
     previewRef.current?.setView(view.zoom, view.pan);
-    setCurrentView({ zoom: view.zoom, pan: view.pan });
+  };
+
+  const handleUpdateViewToCurrentState = (viewId: string) => {
+    setSavedViews(prev => prev.map(view => 
+      view.id === viewId 
+        ? { ...view, zoom: currentView.zoom, pan: currentView.pan, timestamp: Date.now() }
+        : view
+    ));
+  };
+
+  const handleApplyProvisionalViewToSaved = (viewId: string, commentId: string) => {
+    const comment = comments.find(c => c.id === commentId);
+    const provisionalView = provisionalViews.find(v => v.commentId === commentId);
+    
+    if (provisionalView) {
+      setSavedViews(prev => prev.map(view => 
+        view.id === viewId 
+          ? { ...view, zoom: provisionalView.zoom, pan: provisionalView.pan, timestamp: Date.now() }
+          : view
+      ));
+    }
   };
 
   const handleUnlinkView = (commentId: string) => {
@@ -313,6 +333,8 @@ const Index = () => {
                   onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
                   comments={comments}
                   onCreateCommentForView={handleCreateCommentForView}
+                  onUpdateViewToCurrentState={handleUpdateViewToCurrentState}
+                  onApplyProvisionalViewToSaved={handleApplyProvisionalViewToSaved}
                 />
               </TabsContent>
               

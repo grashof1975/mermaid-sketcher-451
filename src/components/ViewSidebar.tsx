@@ -1,5 +1,5 @@
 import React from 'react';
-import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, BellOff, Bell, MessageSquare } from 'lucide-react';
+import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, BellOff, Bell, MessageSquare, RefreshCw, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,6 +56,8 @@ interface ViewSidebarProps {
   onToggleCollapse?: () => void;
   comments?: any[]; // Array di commenti per contare quelli collegati alle viste
   onCreateCommentForView?: (viewId: string) => void; // Callback per creare commento per una vista
+  onUpdateViewToCurrentState?: (viewId: string) => void; // Callback per aggiornare vista con stato attuale
+  onApplyProvisionalViewToSaved?: (viewId: string, commentId: string) => void; // Callback per applicare vista provvisoria
 }
 
 const ViewSidebar: React.FC<ViewSidebarProps> = ({
@@ -72,6 +74,8 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   onToggleCollapse,
   comments = [],
   onCreateCommentForView,
+  onUpdateViewToCurrentState,
+  onApplyProvisionalViewToSaved,
 }) => {
   const [newViewName, setNewViewName] = React.useState('');
   const [sortOption, setSortOption] = React.useState<SortOption>('date-desc');
@@ -617,6 +621,17 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
               <div className="w-5" /> // Spacer to maintain alignment
             )}
             
+            {/* Icona per aggiornare vista con stato attuale */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onUpdateViewToCurrentState && onUpdateViewToCurrentState(view.id)}
+              className="h-5 w-5 p-0 hover:bg-primary/10"
+              title="Aggiorna vista con stato attuale"
+            >
+              <RefreshCw className="h-3 w-3 text-primary" />
+            </Button>
+            
             <Button
               variant="ghost"
               size="sm"
@@ -734,21 +749,40 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
                 {/* Icona commenti con contatore */}
                 {(() => {
                   const commentsCount = getCommentsCount(view.id);
+                  const provisionalComment = comments.find(comment => 
+                    comment.linkedViewId === view.id && comment.isProvisional
+                  );
+                  
                   return (
-                    <div className="relative">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCreateCommentForView(view.id)}
-                        className="h-5 w-5 p-0"
-                        title={commentsCount > 0 ? `${commentsCount} commenti` : "Aggiungi commento"}
-                      >
-                        <MessageSquare className="h-3 w-3" />
-                      </Button>
-                      {commentsCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-3 w-3 flex items-center justify-center text-[8px] font-bold">
-                          {commentsCount > 9 ? '9+' : commentsCount}
-                        </span>
+                    <div className="flex items-center gap-1">
+                      <div className="relative">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCreateCommentForView(view.id)}
+                          className="h-5 w-5 p-0"
+                          title={commentsCount > 0 ? `${commentsCount} commenti` : "Aggiungi commento"}
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                        </Button>
+                        {commentsCount > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-3 w-3 flex items-center justify-center text-[8px] font-bold">
+                            {commentsCount > 9 ? '9+' : commentsCount}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Icona per applicare vista provvisoria se esiste */}
+                      {provisionalComment && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onApplyProvisionalViewToSaved && onApplyProvisionalViewToSaved(view.id, provisionalComment.id)}
+                          className="h-5 w-5 p-0 hover:bg-primary/10"
+                          title="Applica vista provvisoria del commento"
+                        >
+                          <Upload className="h-3 w-3 text-primary" />
+                        </Button>
                       )}
                     </div>
                   );
