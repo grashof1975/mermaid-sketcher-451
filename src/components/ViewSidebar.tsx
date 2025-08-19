@@ -1,5 +1,5 @@
 import React from 'react';
-import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp } from 'lucide-react';
+import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -216,6 +216,69 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   const [editingViewId, setEditingViewId] = React.useState<string | null>(null);
   const [editingName, setEditingName] = React.useState<string>('');
 
+  // Handler per le frecce direzionali
+  const handleMoveView = (viewId: string, direction: 'left' | 'right' | 'up' | 'down') => {
+    const updatedViews = [...savedViews];
+    const viewIndex = updatedViews.findIndex(v => v.id === viewId);
+    const view = updatedViews[viewIndex];
+    
+    if (!view) return;
+
+    switch (direction) {
+      case 'right': {
+        // Nidifica sotto la vista superiore (trova la vista precedente nello stesso livello)
+        const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
+        const currentIndexInLevel = sameLevel.findIndex(v => v.id === viewId);
+        if (currentIndexInLevel > 0) {
+          const parentView = sameLevel[currentIndexInLevel - 1];
+          updatedViews[viewIndex] = { ...view, parentId: parentView.id };
+          setExpandedGroups(prev => new Set([...prev, parentView.id]));
+        }
+        break;
+      }
+      case 'left': {
+        // Sposta al livello superiore (de-nidifica)
+        if (view.parentId) {
+          const parentView = updatedViews.find(v => v.id === view.parentId);
+          updatedViews[viewIndex] = { ...view, parentId: parentView?.parentId };
+        }
+        break;
+      }
+      case 'up': {
+        // Sposta verso l'alto nello stesso livello
+        const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
+        const currentIndexInLevel = sameLevel.findIndex(v => v.id === viewId);
+        if (currentIndexInLevel > 0) {
+          const targetView = sameLevel[currentIndexInLevel - 1];
+          const viewIndexInAll = updatedViews.findIndex(v => v.id === viewId);
+          const targetIndexInAll = updatedViews.findIndex(v => v.id === targetView.id);
+          
+          // Scambia le posizioni
+          [updatedViews[viewIndexInAll], updatedViews[targetIndexInAll]] = 
+          [updatedViews[targetIndexInAll], updatedViews[viewIndexInAll]];
+        }
+        break;
+      }
+      case 'down': {
+        // Sposta verso il basso nello stesso livello
+        const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
+        const currentIndexInLevel = sameLevel.findIndex(v => v.id === viewId);
+        if (currentIndexInLevel < sameLevel.length - 1) {
+          const targetView = sameLevel[currentIndexInLevel + 1];
+          const viewIndexInAll = updatedViews.findIndex(v => v.id === viewId);
+          const targetIndexInAll = updatedViews.findIndex(v => v.id === targetView.id);
+          
+          // Scambia le posizioni
+          [updatedViews[viewIndexInAll], updatedViews[targetIndexInAll]] = 
+          [updatedViews[targetIndexInAll], updatedViews[viewIndexInAll]];
+        }
+        break;
+      }
+    }
+    
+    onUpdateViews(updatedViews);
+  };
+
   const SortableViewRow: React.FC<{ view: SavedView; level?: number }> = ({ view, level = 0 }) => {
     const {
       attributes,
@@ -297,6 +360,47 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
             >
               <Eye className="h-3 w-3 text-primary" />
             </Button>
+            
+            {/* Frecce direzionali */}
+            <div className="flex items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleMoveView(view.id, 'left')}
+                className="h-4 w-4 p-0 hover:bg-secondary/50"
+                title="Sposta a livello superiore"
+                disabled={!view.parentId}
+              >
+                <ArrowLeft className="h-2.5 w-2.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleMoveView(view.id, 'right')}
+                className="h-4 w-4 p-0 hover:bg-secondary/50"
+                title="Nidifica sotto vista precedente"
+              >
+                <ArrowRight className="h-2.5 w-2.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleMoveView(view.id, 'up')}
+                className="h-4 w-4 p-0 hover:bg-secondary/50"
+                title="Sposta su"
+              >
+                <ArrowUp className="h-2.5 w-2.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleMoveView(view.id, 'down')}
+                className="h-4 w-4 p-0 hover:bg-secondary/50"
+                title="Sposta giù"
+              >
+                <ArrowDown className="h-2.5 w-2.5" />
+              </Button>
+            </div>
             
             {isEditing ? (
               <Input
