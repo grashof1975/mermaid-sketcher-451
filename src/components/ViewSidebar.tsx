@@ -74,6 +74,72 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   const [dragOverParent, setDragOverParent] = React.useState<string | null>(null);
   const [selectedViewId, setSelectedViewId] = React.useState<string | null>(null);
+  
+  // History per undo/redo
+  const [history, setHistory] = React.useState<SavedView[][]>([savedViews]);
+  const [currentHistoryIndex, setCurrentHistoryIndex] = React.useState(0);
+
+  // Funzioni per la gestione della history
+  const pushToHistory = React.useCallback((newViews: SavedView[]) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, currentHistoryIndex + 1);
+      newHistory.push([...newViews]);
+      return newHistory.slice(-50); // Mantieni solo le ultime 50 operazioni
+    });
+    setCurrentHistoryIndex(prev => Math.min(prev + 1, 49));
+  }, [currentHistoryIndex]);
+
+  const undo = React.useCallback(() => {
+    if (currentHistoryIndex > 0) {
+      const newIndex = currentHistoryIndex - 1;
+      const previousState = history[newIndex];
+      setCurrentHistoryIndex(newIndex);
+      onUpdateViews([...previousState]);
+      toast({
+        title: "Annullato",
+        description: "Operazione annullata",
+      });
+    }
+  }, [currentHistoryIndex, history, onUpdateViews]);
+
+  const redo = React.useCallback(() => {
+    if (currentHistoryIndex < history.length - 1) {
+      const newIndex = currentHistoryIndex + 1;
+      const nextState = history[newIndex];
+      setCurrentHistoryIndex(newIndex);
+      onUpdateViews([...nextState]);
+      toast({
+        title: "Ripristinato",
+        description: "Operazione ripristinata",
+      });
+    }
+  }, [currentHistoryIndex, history, onUpdateViews]);
+
+  // Listener per scorciatoie da tastiera
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        if (event.key === 'z' && !event.shiftKey) {
+          event.preventDefault();
+          undo();
+        } else if (event.key === 'y' || (event.key === 'z' && event.shiftKey)) {
+          event.preventDefault();
+          redo();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
+  // Aggiorna la history quando savedViews cambia dall'esterno
+  React.useEffect(() => {
+    if (history.length === 1 || JSON.stringify(history[currentHistoryIndex]) !== JSON.stringify(savedViews)) {
+      setHistory([savedViews]);
+      setCurrentHistoryIndex(0);
+    }
+  }, [savedViews]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -145,11 +211,13 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
         
         if (oldIndex !== -1 && newIndex !== -1) {
           const reorderedViews = arrayMove(savedViews, oldIndex, newIndex);
+          pushToHistory(reorderedViews);
           onUpdateViews(reorderedViews);
           return;
         }
       }
       
+      pushToHistory(updatedViews);
       onUpdateViews(updatedViews);
     }
   };
@@ -346,14 +414,15 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
           
           // Inserisci nell'ordine corretto
           const insertPos = Math.min(currentStart, targetStart);
-          withoutGroups.splice(insertPos, 0, ...currentGroup, ...targetGroup);
-          
-          onUpdateViews(withoutGroups);
-          toast({
-            title: "Vista spostata",
-            description: `"${view.name}" spostata verso l'alto`,
-          });
-          return;
+           withoutGroups.splice(insertPos, 0, ...currentGroup, ...targetGroup);
+           
+           pushToHistory(withoutGroups);
+           onUpdateViews(withoutGroups);
+           toast({
+             title: "Vista spostata",
+             description: `"${view.name}" spostata verso l'alto`,
+           });
+           return;
         } else {
           toast({
             title: "Operazione non possibile",
@@ -389,6 +458,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
           const insertPos = Math.min(currentStart, targetStart);
           withoutGroups.splice(insertPos, 0, ...targetGroup, ...currentGroup);
           
+          pushToHistory(withoutGroups);
           onUpdateViews(withoutGroups);
           toast({
             title: "Vista spostata",
@@ -403,12 +473,13 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
           });
           return;
         }
-        break;
-      }
-    }
-    
-    onUpdateViews(updatedViews);
-  };
+         break;
+       }
+     }
+     
+     pushToHistory(updatedViews);
+     onUpdateViews(updatedViews);
+   };
 
   const SortableViewRow: React.FC<{ view: SavedView; level?: number }> = ({ view, level = 0 }) => {
     const {
