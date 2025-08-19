@@ -200,6 +200,7 @@ const Index = () => {
               onDeleteView={handleDeleteView}
               onResetView={handleResetView}
               onUpdateViews={handleUpdateViews}
+              setSavedViews={setSavedViews}
               currentZoom={previewRef.current?.getView()?.zoom || 1}
               currentPan={previewRef.current?.getView()?.pan || { x: 0, y: 0 }}
               isCollapsed={!showFooterPanel}

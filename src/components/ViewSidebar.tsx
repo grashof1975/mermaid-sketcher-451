@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/components/ui/use-toast';
@@ -48,6 +49,7 @@ interface ViewSidebarProps {
   onDeleteView: (id: string) => void;
   onResetView: () => void;
   onUpdateViews: (views: SavedView[]) => void;
+  setSavedViews?: (views: SavedView[]) => void;
   currentZoom: number;
   currentPan: { x: number; y: number };
   isCollapsed?: boolean;
@@ -61,6 +63,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   onDeleteView,
   onResetView,
   onUpdateViews,
+  setSavedViews,
   currentZoom,
   currentPan,
   isCollapsed = false,
@@ -97,18 +100,60 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       if (overView.isFolder) {
         const activeIndex = updatedViews.findIndex(v => v.id === activeId);
         updatedViews[activeIndex] = { ...activeView, parentId: overId };
+        // Expand the folder when dropping into it
+        setExpandedGroups(prev => new Set([...prev, overId]));
+        onUpdateViews(updatedViews);
       } else {
-        // Reorder at the same level
-        const oldIndex = updatedViews.findIndex(v => v.id === activeId);
-        const newIndex = updatedViews.findIndex(v => v.id === overId);
-        
-        const reorderedViews = arrayMove(updatedViews, oldIndex, newIndex);
-        onUpdateViews(reorderedViews);
-        return;
+        // If dropping a folder on a regular view, create a new folder
+        if (activeView.isFolder) {
+          // Just reorder folders
+          const oldIndex = updatedViews.findIndex(v => v.id === activeId);
+          const newIndex = updatedViews.findIndex(v => v.id === overId);
+          const reorderedViews = arrayMove(updatedViews, oldIndex, newIndex);
+          onUpdateViews(reorderedViews);
+        } else {
+          // Create a new folder if dropping a view on another view
+          const newFolderId = `folder-${Date.now()}`;
+          const newFolder: SavedView = {
+            id: newFolderId,
+            name: `Gruppo ${Math.floor(Math.random() * 1000)}`,
+            zoom: 1,
+            pan: { x: 0, y: 0 },
+            timestamp: Date.now(),
+            isFolder: true,
+            expanded: true
+          };
+
+          // Remove both views from root and add them as children
+          const filteredViews = updatedViews.filter(v => v.id !== activeId && v.id !== overId);
+          const activeWithParent = { ...activeView, parentId: newFolderId };
+          const overWithParent = { ...overView, parentId: newFolderId };
+          
+          const newViews = [...filteredViews, newFolder, activeWithParent, overWithParent];
+          setExpandedGroups(prev => new Set([...prev, newFolderId]));
+          onUpdateViews(newViews);
+        }
       }
-      
-      onUpdateViews(updatedViews);
     }
+  };
+
+  const createNewFolder = () => {
+    const newFolder: SavedView = {
+      id: `folder-${Date.now()}`,
+      name: `Nuova Cartella`,
+      zoom: 1,
+      pan: { x: 0, y: 0 },
+      timestamp: Date.now(),
+      isFolder: true,
+      expanded: true
+    };
+    const newViews = [...savedViews, newFolder];
+    if (setSavedViews) {
+      setSavedViews(newViews);
+    } else {
+      onUpdateViews(newViews);
+    }
+    setExpandedGroups(prev => new Set([...prev, newFolder.id]));
   };
 
   // Organize views into hierarchical structure
@@ -226,26 +271,28 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
           <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(view.id)}>
             <CollapsibleTrigger asChild>
               <div 
-                className="flex items-center gap-2 p-1 hover:bg-muted/50 rounded cursor-pointer"
+                className="flex items-center gap-2 p-1 hover:bg-muted/50 rounded cursor-pointer group"
                 style={{ paddingLeft: `${level * 12}px` }}
               >
                 <div {...attributes} {...listeners} className="cursor-grab hover:cursor-grabbing">
                   <GripVertical className="h-3 w-3 text-muted-foreground" />
                 </div>
-                {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                {isExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="text-sm font-medium truncate flex-1">
-                        {truncateText(view.name, 15)}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{view.name}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <CollapsibleTrigger className="flex items-center gap-2 flex-1">
+                  {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {isExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-sm font-medium truncate flex-1">
+                          {truncateText(view.name, 15)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{view.name}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </CollapsibleTrigger>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -369,67 +416,88 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* Current view info */}
-        <div className="space-y-2">
-          <Label className="text-xs font-medium">Vista Corrente</Label>
-          <div className="text-xs text-muted-foreground space-y-1">
-            <div>Zoom: {formatZoom(currentZoom)}</div>
-            <div>Pos: {formatPan(currentPan)}</div>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onResetView}
-            className="w-full h-7 text-xs"
-          >
-            <RotateCcw className="h-3 w-3 mr-1" />
-            Reset
-          </Button>
-        </div>
-
-        {/* Save new view */}
-        <div className="space-y-2">
-          <Label className="text-xs font-medium">Salva Vista</Label>
-          <div className="flex gap-1">
-            <Input
-              placeholder="Nome vista..."
-              value={newViewName}
-              onChange={(e) => setNewViewName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSaveView()}
-              className="flex-1 h-7 text-xs"
-            />
-            <Button onClick={handleSaveView} size="sm" className="h-7 w-7 p-0">
-              <Save className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Saved views list */}
-        <div className="space-y-2">
-          <Label className="text-xs font-medium">Elenco Viste</Label>
-          <div className="max-h-32 overflow-y-auto space-y-1">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={organizedViews.rootViews.map(v => v.id)}
-                strategy={verticalListSortingStrategy}
+        <ResizablePanelGroup direction="horizontal" className="col-span-full">
+          {/* Current view info */}
+          <ResizablePanel defaultSize={25} minSize={20}>
+            <div className="space-y-2 p-2">
+              <Label className="text-xs font-medium">Vista Corrente</Label>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div>Zoom: {formatZoom(currentZoom)}</div>
+                <div>Pos: {formatPan(currentPan)}</div>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onResetView}
+                className="w-full h-7 text-xs"
               >
-                {organizedViews.rootViews.length === 0 ? (
-                  <div className="text-center text-muted-foreground text-xs py-4">
-                    Nessuna vista salvata
-                  </div>
-                ) : (
-                  organizedViews.rootViews.map((view) => (
-                    <SortableViewRow key={view.id} view={view} />
-                  ))
-                )}
-              </SortableContext>
-            </DndContext>
-          </div>
-        </div>
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Reset
+              </Button>
+            </div>
+          </ResizablePanel>
+          
+          <ResizableHandle withHandle />
+
+          {/* Save new view */}
+          <ResizablePanel defaultSize={25} minSize={20}>
+            <div className="space-y-2 p-2">
+              <Label className="text-xs font-medium">Salva Vista</Label>
+              <div className="flex gap-1">
+                <Input
+                  placeholder="Nome vista..."
+                  value={newViewName}
+                  onChange={(e) => setNewViewName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveView()}
+                  className="flex-1 h-7 text-xs"
+                />
+                <Button onClick={handleSaveView} size="sm" className="h-7 w-7 p-0">
+                  <Save className="h-3 w-3" />
+                </Button>
+              </div>
+              <Button 
+                onClick={createNewFolder} 
+                variant="outline" 
+                size="sm" 
+                className="w-full h-7 text-xs"
+              >
+                <Folder className="h-3 w-3 mr-1" />
+                Nuova Cartella
+              </Button>
+            </div>
+          </ResizablePanel>
+
+          <ResizableHandle withHandle />
+
+          {/* Saved views list */}
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <div className="space-y-2 p-2">
+              <Label className="text-xs font-medium">Elenco Viste</Label>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={organizedViews.rootViews.map(v => v.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {organizedViews.rootViews.length === 0 ? (
+                      <div className="text-center text-muted-foreground text-xs py-4">
+                        Nessuna vista salvata
+                      </div>
+                    ) : (
+                      organizedViews.rootViews.map((view) => (
+                        <SortableViewRow key={view.id} view={view} />
+                      ))
+                    )}
+                  </SortableContext>
+                </DndContext>
+              </div>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </div>
   );
