@@ -36,6 +36,9 @@ import { cn } from '@/lib/utils';
 import { useViews } from '@/hooks/useViews';
 import { useComments } from '@/hooks/useComments';
 import { PreviewRef } from '@/components/Preview';
+import ViewTooltip from '@/components/ViewTooltip';
+import QuickCommentModal from '@/components/QuickCommentModal';
+import { SavedView } from '@/types/database';
 
 interface ViewSidebarProps {
   diagramId: string;
@@ -53,24 +56,44 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   previewRef
 }) => {
   const { views, saveView, updateView, deleteView } = useViews(diagramId);
-  const { comments } = useComments(diagramId);
+  const { comments, addComment } = useComments(diagramId);
   const [viewName, setViewName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'zoom'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [selectedParent, setSelectedParent] = useState<string | null>(null);
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
   const handleSaveView = async () => {
     if (!viewName.trim()) return;
     
     await saveView({
       name: viewName,
-      zoom_level: zoom,
-      pan_x: pan.x,
-      pan_y: pan.y,
-      is_folder: false
+      zoom_level: isCreatingFolder ? 1 : zoom,
+      pan_x: isCreatingFolder ? 0 : pan.x,
+      pan_y: isCreatingFolder ? 0 : pan.y,
+      is_folder: isCreatingFolder,
+      parent_id: selectedParent
     });
     
     setViewName('');
+    setIsCreatingFolder(false);
+    setSelectedParent(null);
+  };
+
+  const handleCreateFolder = () => {
+    setIsCreatingFolder(true);
+  };
+
+  const toggleFolder = (folderId: string) => {
+    const newExpanded = new Set(expandedFolders);
+    if (newExpanded.has(folderId)) {
+      newExpanded.delete(folderId);
+    } else {
+      newExpanded.add(folderId);
+    }
+    setExpandedFolders(newExpanded);
   };
 
   const handleLoadView = async (view: any) => {
@@ -78,27 +101,125 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
     previewRef.current?.setView(view.zoom_level, { x: view.pan_x, y: view.pan_y });
   };
 
+  // Recursive function to render view tree
+  const renderViewItem = (view: SavedView, level: number = 0) => {
+    const isFolder = view.is_folder;
+    const isExpanded = expandedFolders.has(view.id);
+    const viewComments = getViewComments(view.id);
+    const hasChildren = view.children && view.children.length > 0;
+
+    if (searchTerm && !view.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+      return null;
+    }
+
+    return (
+      <div key={view.id}>
+        <div
+          className={cn(
+            "group relative flex items-center gap-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer",
+            level > 0 && "ml-4 border-l border-slate-200 dark:border-slate-700"
+          )}
+          onClick={() => isFolder ? toggleFolder(view.id) : handleLoadView(view)}
+        >
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              {isFolder ? (
+                <>
+                  {isExpanded ? (
+                    <FolderOpen className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                  ) : (
+                    <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                  )}
+                </>
+              ) : (
+                <Eye className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              )}
+              <span className="font-medium truncate">{view.name}</span>
+              {!isFolder && viewComments.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <MessageCircle className="h-3 w-3 text-blue-500" />
+                  <Badge variant="secondary" className="text-xs">
+                    {viewComments.length}
+                  </Badge>
+                </div>
+              )}
+            </div>
+            {!isFolder && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                <span>{Math.round(view.zoom_level * 100)}%</span>
+                <span>•</span>
+                <span>({view.pan_x.toFixed(0)}, {view.pan_y.toFixed(0)})</span>
+              </div>
+            )}
+          </div>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isFolder && (
+                <>
+                  <DropdownMenuItem onClick={() => handleLoadView(view)}>
+                    <Eye className="mr-2 h-4 w-4" />
+                    Load View
+                  </DropdownMenuItem>
+                  <QuickCommentModal view={view} onAddComment={addComment}>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      Add Comment
+                    </DropdownMenuItem>
+                  </QuickCommentModal>
+                  <DropdownMenuItem onClick={() => updateView(view.id, { 
+                    zoom_level: zoom, 
+                    pan_x: pan.x, 
+                    pan_y: pan.y 
+                  })}>
+                    <Save className="mr-2 h-4 w-4" />
+                    Update with Current
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {isFolder && (
+                <>
+                  <DropdownMenuItem onClick={() => setSelectedParent(view.id)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add View to Folder
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem 
+                onClick={() => deleteView(view.id)}
+                className="text-red-600"
+              >
+                Delete {isFolder ? 'Folder' : 'View'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+        
+        {/* Render children if folder is expanded */}
+        {isFolder && isExpanded && hasChildren && (
+          <div className="ml-2">
+            {view.children!.map(child => renderViewItem(child, level + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const filteredViews = views.filter(view =>
     view.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const sortedViews = [...filteredViews].sort((a, b) => {
-    let comparison = 0;
-    
-    switch (sortBy) {
-      case 'name':
-        comparison = a.name.localeCompare(b.name);
-        break;
-      case 'date':
-        comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        break;
-      case 'zoom':
-        comparison = a.zoom_level - b.zoom_level;
-        break;
-    }
-    
-    return sortOrder === 'asc' ? comparison : -comparison;
-  });
 
   const getViewComments = (viewId: string) => {
     return comments.filter(comment => comment.linked_view_id === viewId);
@@ -110,20 +231,44 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       <div className="p-4 border-b border-slate-200 dark:border-slate-800">
         <div className="space-y-2">
           <Input
-            placeholder="View name"
+            placeholder={isCreatingFolder ? "Folder name" : selectedParent ? "View name (in folder)" : "View name"}
             value={viewName}
             onChange={(e) => setViewName(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSaveView()}
           />
-          <Button 
-            onClick={handleSaveView}
-            disabled={!viewName.trim()}
-            className="w-full"
-            size="sm"
-          >
-            <Save className="mr-2 h-4 w-4" />
-            Save Current View
-          </Button>
+          {selectedParent && (
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Folder className="h-3 w-3" />
+              Adding to: {views.find(v => v.id === selectedParent)?.name}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setSelectedParent(null)}
+                className="h-4 w-4 p-0 ml-1"
+              >
+                ×
+              </Button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleSaveView}
+              disabled={!viewName.trim()}
+              className="flex-1"
+              size="sm"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isCreatingFolder ? 'Create Folder' : 'Save View'}
+            </Button>
+            <Button 
+              onClick={handleCreateFolder}
+              variant="outline"
+              size="sm"
+              disabled={isCreatingFolder}
+            >
+              <Folder className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -180,7 +325,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       {/* Views List */}
       <ScrollArea className="flex-1">
         <div className="p-2">
-          {sortedViews.length === 0 ? (
+          {filteredViews.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               <Eye className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p>No saved views yet</p>
@@ -188,71 +333,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
             </div>
           ) : (
             <div className="space-y-1">
-              {sortedViews.map((view) => {
-                const viewComments = getViewComments(view.id);
-                
-                return (
-                  <div
-                    key={view.id}
-                    className="group relative flex items-center gap-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                    onClick={() => handleLoadView(view)}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Eye className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="font-medium truncate">{view.name}</span>
-                        {viewComments.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            <MessageCircle className="h-3 w-3 text-blue-500" />
-                            <Badge variant="secondary" className="text-xs">
-                              {viewComments.length}
-                            </Badge>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                        <span>{Math.round(view.zoom_level * 100)}%</span>
-                        <span>•</span>
-                        <span>({view.pan_x.toFixed(0)}, {view.pan_y.toFixed(0)})</span>
-                      </div>
-                    </div>
-                    
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="h-3 w-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleLoadView(view)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Load View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => updateView(view.id, { 
-                          zoom_level: zoom, 
-                          pan_x: pan.x, 
-                          pan_y: pan.y 
-                        })}>
-                          <Save className="mr-2 h-4 w-4" />
-                          Update with Current
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => deleteView(view.id)}
-                          className="text-red-600"
-                        >
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                );
-              })}
+              {filteredViews.map((view) => renderViewItem(view))}
             </div>
           )}
         </div>
