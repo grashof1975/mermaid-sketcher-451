@@ -329,7 +329,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   // Handler per le frecce direzionali - ora usa la vista selezionata
   const handleMoveView = (direction: 'left' | 'right' | 'up' | 'down') => {
     if (!selectedViewId) {
-      toast({
+      conditionalToast({
         title: "Nessuna vista selezionata",
         description: "Seleziona una vista prima di usare le frecce",
         variant: "destructive",
@@ -413,12 +413,12 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
         if (view.parentId) {
           const parentView = updatedViews.find(v => v.id === view.parentId);
           updatedViews[viewIndex] = { ...view, parentId: parentView?.parentId };
-          toast({
+          conditionalToast({
             title: "Vista de-nidificata",
             description: `"${view.name}" spostata al livello superiore`,
           });
         } else {
-          toast({
+          conditionalToast({
             title: "Operazione non possibile",
             description: "La vista è già al livello radice",
             variant: "destructive",
@@ -429,7 +429,10 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       }
       case 'up': {
         // Sposta verso l'alto nello stesso livello
-        const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
+        const sameLevel = updatedViews.filter(v => 
+          (v.parentId === view.parentId) || 
+          (!v.parentId && !view.parentId)
+        );
         const currentIndexInLevel = sameLevel.findIndex(v => v.id === selectedViewId);
         
         if (currentIndexInLevel > 0) {
@@ -454,13 +457,13 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
            
            pushToHistory(withoutGroups);
            onUpdateViews(withoutGroups);
-           toast({
+           conditionalToast({
              title: "Vista spostata",
              description: `"${view.name}" spostata verso l'alto`,
            });
            return;
         } else {
-          toast({
+          conditionalToast({
             title: "Operazione non possibile",
             description: "La vista è già in cima al suo livello",
             variant: "destructive",
@@ -471,7 +474,10 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       }
       case 'down': {
         // Sposta verso il basso nello stesso livello
-        const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
+        const sameLevel = updatedViews.filter(v => 
+          (v.parentId === view.parentId) || 
+          (!v.parentId && !view.parentId)
+        );
         const currentIndexInLevel = sameLevel.findIndex(v => v.id === selectedViewId);
         
         if (currentIndexInLevel < sameLevel.length - 1) {
@@ -496,13 +502,13 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
           
           pushToHistory(withoutGroups);
           onUpdateViews(withoutGroups);
-          toast({
+          conditionalToast({
             title: "Vista spostata",
             description: `"${view.name}" spostata verso il basso`,
           });
           return;
         } else {
-          toast({
+          conditionalToast({
             title: "Operazione non possibile",
             description: "La vista è già in fondo al suo livello",
             variant: "destructive",
