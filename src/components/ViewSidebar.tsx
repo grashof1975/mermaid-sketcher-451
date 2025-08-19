@@ -1,5 +1,5 @@
 import React from 'react';
-import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder } from 'lucide-react';
+import { Save, Eye, Trash2, RotateCcw, ArrowUpDown, ChevronRight, ChevronDown, FolderOpen, Folder, GripVertical, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/components/ui/use-toast';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 export type SortOption = 'name-asc' | 'name-desc' | 'date-asc' | 'date-desc' | 'zoom-asc' | 'zoom-desc';
 
@@ -28,8 +47,11 @@ interface ViewSidebarProps {
   onLoadView: (view: SavedView) => void;
   onDeleteView: (id: string) => void;
   onResetView: () => void;
+  onUpdateViews: (views: SavedView[]) => void;
   currentZoom: number;
   currentPan: { x: number; y: number };
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 const ViewSidebar: React.FC<ViewSidebarProps> = ({
@@ -38,12 +60,56 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   onLoadView,
   onDeleteView,
   onResetView,
+  onUpdateViews,
   currentZoom,
-  currentPan
+  currentPan,
+  isCollapsed = false,
+  onToggleCollapse
 }) => {
   const [newViewName, setNewViewName] = React.useState('');
   const [sortOption, setSortOption] = React.useState<SortOption>('date-desc');
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    if (activeId !== overId) {
+      const activeView = savedViews.find(v => v.id === activeId);
+      const overView = savedViews.find(v => v.id === overId);
+
+      if (!activeView || !overView) return;
+
+      const updatedViews = [...savedViews];
+      
+      // If dropping on a folder, make it a child
+      if (overView.isFolder) {
+        const activeIndex = updatedViews.findIndex(v => v.id === activeId);
+        updatedViews[activeIndex] = { ...activeView, parentId: overId };
+      } else {
+        // Reorder at the same level
+        const oldIndex = updatedViews.findIndex(v => v.id === activeId);
+        const newIndex = updatedViews.findIndex(v => v.id === overId);
+        
+        const reorderedViews = arrayMove(updatedViews, oldIndex, newIndex);
+        onUpdateViews(reorderedViews);
+        return;
+      }
+      
+      onUpdateViews(updatedViews);
+    }
+  };
 
   // Organize views into hierarchical structure
   const organizedViews = React.useMemo(() => {
@@ -135,30 +201,44 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
     return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
-  const ViewRow: React.FC<{ view: SavedView; level?: number; hasChildren?: boolean }> = ({ 
-    view, 
-    level = 0, 
-    hasChildren = false 
-  }) => {
+  const SortableViewRow: React.FC<{ view: SavedView; level?: number }> = ({ view, level = 0 }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: view.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
     const isExpanded = expandedGroups.has(view.id);
     const childViews = organizedViews.groupedViews[view.id] || [];
 
     if (view.isFolder) {
       return (
-        <div>
+        <div ref={setNodeRef} style={style}>
           <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(view.id)}>
             <CollapsibleTrigger asChild>
               <div 
-                className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded cursor-pointer"
-                style={{ paddingLeft: `${(level + 1) * 12}px` }}
+                className="flex items-center gap-2 p-1 hover:bg-muted/50 rounded cursor-pointer"
+                style={{ paddingLeft: `${level * 12}px` }}
               >
+                <div {...attributes} {...listeners} className="cursor-grab hover:cursor-grabbing">
+                  <GripVertical className="h-3 w-3 text-muted-foreground" />
+                </div>
                 {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                 {isExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="text-sm font-medium truncate flex-1">
-                        {truncateText(view.name)}
+                        {truncateText(view.name, 15)}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -173,7 +253,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
                     e.stopPropagation();
                     onDeleteView(view.id);
                   }}
-                  className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                  className="h-5 w-5 p-0 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -181,7 +261,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
             </CollapsibleTrigger>
             <CollapsibleContent>
               {childViews.map(childView => (
-                <ViewRow key={childView.id} view={childView} level={level + 1} />
+                <SortableViewRow key={childView.id} view={childView} level={level + 1} />
               ))}
             </CollapsibleContent>
           </Collapsible>
@@ -191,15 +271,20 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
     return (
       <div 
-        className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded group"
-        style={{ paddingLeft: `${(level + 1) * 12}px` }}
+        ref={setNodeRef}
+        style={style}
+        className="flex items-center gap-2 p-1 hover:bg-muted/50 rounded group"
+        {...attributes}
       >
-        <div className="flex-1 min-w-0 flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft: `${level * 12}px` }}>
+          <div {...listeners} className="cursor-grab hover:cursor-grabbing">
+            <GripVertical className="h-3 w-3 text-muted-foreground" />
+          </div>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-sm font-medium truncate">
-                  {truncateText(view.name)}
+                <span className="text-sm truncate flex-1">
+                  {truncateText(view.name, 15)}
                 </span>
               </TooltipTrigger>
               <TooltipContent>
@@ -228,7 +313,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => handleLoadView(view)}
-            className="h-6 w-6 p-0"
+            className="h-5 w-5 p-0"
           >
             <Eye className="h-3 w-3" />
           </Button>
@@ -236,7 +321,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => onDeleteView(view.id)}
-            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+            className="h-5 w-5 p-0 text-destructive hover:text-destructive"
           >
             <Trash2 className="h-3 w-3" />
           </Button>
@@ -245,88 +330,105 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
     );
   };
 
+  if (isCollapsed) {
+    return null;
+  }
+
   return (
-    <div className="w-80 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-l border-border p-4 flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Eye className="h-5 w-5 text-primary" />
-        <h3 className="font-semibold text-lg">Viste Salvate</h3>
-      </div>
-      
-      <Separator />
-      
-      {/* Current view info */}
-      <div className="space-y-2">
-        <Label className="text-sm font-medium">Vista Corrente</Label>
-        <div className="text-xs text-muted-foreground space-y-1">
-          <div>Zoom: {formatZoom(currentZoom)}</div>
-          <div>Posizione: {formatPan(currentPan)}</div>
+    <div className="w-full bg-background/50 backdrop-blur-sm border-t border-border p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Eye className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold">Viste Salvate ({savedViews.length})</h3>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={onResetView}
-          className="w-full"
-        >
-          <RotateCcw className="h-4 w-4 mr-2" />
-          Reset Vista
-        </Button>
+        <div className="flex items-center gap-2">
+          {onToggleCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleCollapse}
+              className="h-6 w-6 p-0"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+          )}
+          <Select value={sortOption} onValueChange={(value: SortOption) => setSortOption(value)}>
+            <SelectTrigger className="h-7 w-auto min-w-[100px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date-desc">Recenti</SelectItem>
+              <SelectItem value="date-asc">Vecchie</SelectItem>
+              <SelectItem value="name-asc">A-Z</SelectItem>
+              <SelectItem value="name-desc">Z-A</SelectItem>
+              <SelectItem value="zoom-desc">Zoom ↑</SelectItem>
+              <SelectItem value="zoom-asc">Zoom ↓</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-      
-      <Separator />
-      
-      {/* Save new view */}
-      <div className="space-y-3">
-        <Label className="text-sm font-medium">Salva Vista Corrente</Label>
-        <div className="flex gap-2">
-          <Input
-            placeholder="Nome vista..."
-            value={newViewName}
-            onChange={(e) => setNewViewName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSaveView()}
-            className="flex-1"
-          />
-          <Button onClick={handleSaveView} size="sm">
-            <Save className="h-4 w-4" />
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Current view info */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Vista Corrente</Label>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div>Zoom: {formatZoom(currentZoom)}</div>
+            <div>Pos: {formatPan(currentPan)}</div>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onResetView}
+            className="w-full h-7 text-xs"
+          >
+            <RotateCcw className="h-3 w-3 mr-1" />
+            Reset
           </Button>
         </div>
-      </div>
-      
-      <Separator />
-      
-      {/* Saved views list */}
-      <div className="flex-1 space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">
-            Viste Salvate ({savedViews.length})
-          </Label>
-          <div className="flex items-center gap-2">
-            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-            <Select value={sortOption} onValueChange={(value: SortOption) => setSortOption(value)}>
-              <SelectTrigger className="h-8 w-auto min-w-[120px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date-desc">Più recenti</SelectItem>
-                <SelectItem value="date-asc">Più vecchie</SelectItem>
-                <SelectItem value="name-asc">Nome A-Z</SelectItem>
-                <SelectItem value="name-desc">Nome Z-A</SelectItem>
-                <SelectItem value="zoom-desc">Zoom alto</SelectItem>
-                <SelectItem value="zoom-asc">Zoom basso</SelectItem>
-              </SelectContent>
-            </Select>
+
+        {/* Save new view */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Salva Vista</Label>
+          <div className="flex gap-1">
+            <Input
+              placeholder="Nome vista..."
+              value={newViewName}
+              onChange={(e) => setNewViewName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveView()}
+              className="flex-1 h-7 text-xs"
+            />
+            <Button onClick={handleSaveView} size="sm" className="h-7 w-7 p-0">
+              <Save className="h-3 w-3" />
+            </Button>
           </div>
         </div>
-        
-        <div className="space-y-1 max-h-96 overflow-y-auto">
-          {organizedViews.rootViews.length === 0 ? (
-            <div className="text-center text-muted-foreground text-sm py-8">
-              Nessuna vista salvata
-            </div>
-          ) : (
-            organizedViews.rootViews.map((view) => (
-              <ViewRow key={view.id} view={view} />
-            ))
-          )}
+
+        {/* Saved views list */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Elenco Viste</Label>
+          <div className="max-h-32 overflow-y-auto space-y-1">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={organizedViews.rootViews.map(v => v.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {organizedViews.rootViews.length === 0 ? (
+                  <div className="text-center text-muted-foreground text-xs py-4">
+                    Nessuna vista salvata
+                  </div>
+                ) : (
+                  organizedViews.rootViews.map((view) => (
+                    <SortableViewRow key={view.id} view={view} />
+                  ))
+                )}
+              </SortableContext>
+            </DndContext>
+          </div>
         </div>
       </div>
     </div>

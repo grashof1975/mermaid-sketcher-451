@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import Header from '@/components/Header';
 import Editor from '@/components/Editor';
@@ -9,7 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { saveAs } from 'file-saver';
 
 const DEFAULT_DIAGRAM = `graph TD
@@ -26,7 +25,7 @@ const Index = () => {
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [currentView, setCurrentView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
   const [showLeftPanel, setShowLeftPanel] = useState<boolean>(true);
-  const [showRightPanel, setShowRightPanel] = useState<boolean>(true);
+  const [showFooterPanel, setShowFooterPanel] = useState<boolean>(true);
   const previewRef = useRef<PreviewRef>(null);
 
   // Initialize theme on component mount
@@ -127,6 +126,10 @@ const Index = () => {
     setSavedViews(prev => prev.filter(view => view.id !== id));
   };
 
+  const handleUpdateViews = (views: SavedView[]) => {
+    setSavedViews(views);
+  };
+
   const handleResetView = () => {
     previewRef.current?.resetView();
     setCurrentView({ zoom: 1, pan: { x: 0, y: 0 } });
@@ -140,60 +143,33 @@ const Index = () => {
         isDarkMode={isDarkMode}
       />
       
-      <main className="flex-1 container py-6 flex flex-col gap-6">
-        <div className="relative">
-          <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-lg border bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
-            {showLeftPanel && (
-              <>
-                <ResizablePanel defaultSize={35} minSize={25}>
-                  <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0">
-                    <Editor 
-                      value={code} 
-                      onChange={setCode} 
-                      className="flex-1"
-                      promptValue={prompt}
-                      onPromptChange={setPrompt}
-                    />
-                    <Separator className="my-4" />
-                    <AIPrompt 
-                      prompt={prompt} 
-                      onDiagramGenerated={handleDiagramGenerated} 
-                    />
-                  </div>
-                </ResizablePanel>
-                <ResizableHandle withHandle />
-              </>
-            )}
-            
-            <ResizablePanel defaultSize={showLeftPanel && showRightPanel ? 65 : 100} minSize={30}>
-              {showRightPanel ? (
-                <ResizablePanelGroup direction="horizontal">
-                  <ResizablePanel defaultSize={75} minSize={50}>
-                    <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0 relative" style={{ animationDelay: '100ms' }}>
-                      <Preview 
-                        ref={previewRef}
-                        code={code} 
-                        className="flex-1" 
-                        onViewChange={handleViewChange}
+      <div className="flex-1 flex flex-col">
+        <main className="flex-1 container py-6 flex flex-col gap-6">
+          <div className="relative">
+            <ResizablePanelGroup direction="horizontal" className="flex-1 rounded-lg border bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+              {showLeftPanel && (
+                <>
+                  <ResizablePanel defaultSize={35} minSize={25}>
+                    <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0">
+                      <Editor 
+                        value={code} 
+                        onChange={setCode} 
+                        className="flex-1"
+                        promptValue={prompt}
+                        onPromptChange={setPrompt}
+                      />
+                      <Separator className="my-4" />
+                      <AIPrompt 
+                        prompt={prompt} 
+                        onDiagramGenerated={handleDiagramGenerated} 
                       />
                     </div>
                   </ResizablePanel>
-                  
                   <ResizableHandle withHandle />
-                  
-                  <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-                    <ViewSidebar
-                      savedViews={savedViews}
-                      onSaveView={handleSaveView}
-                      onLoadView={handleLoadView}
-                      onDeleteView={handleDeleteView}
-                      onResetView={handleResetView}
-                      currentZoom={currentView.zoom}
-                      currentPan={currentView.pan}
-                    />
-                  </ResizablePanel>
-                </ResizablePanelGroup>
-              ) : (
+                </>
+              )}
+              
+              <ResizablePanel defaultSize={showLeftPanel ? 65 : 100} minSize={30}>
                 <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0 relative" style={{ animationDelay: '100ms' }}>
                   <Preview 
                     ref={previewRef}
@@ -201,42 +177,51 @@ const Index = () => {
                     className="flex-1" 
                     onViewChange={handleViewChange}
                   />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowFooterPanel(!showFooterPanel)}
+                    className="absolute right-2 bottom-2 z-10 bg-background/80 backdrop-blur-sm"
+                  >
+                    {showFooterPanel ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </Button>
                 </div>
-              )}
-            </ResizablePanel>
-          </ResizablePanelGroup>
-          
-          {/* Toggle buttons */}
-          <div className="absolute top-4 left-4 z-20 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowLeftPanel(!showLeftPanel)}
-              className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-border/50"
-            >
-              {showLeftPanel ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-            </Button>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+            
+            {/* Toggle buttons */}
+            <div className="absolute top-4 left-4 z-20 flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowLeftPanel(!showLeftPanel)}
+                className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-border/50"
+              >
+                {showLeftPanel ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
-          
-          <div className="absolute top-4 right-4 z-20 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowRightPanel(!showRightPanel)}
-              className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-border/50"
-            >
-              {showRightPanel ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-            </Button>
-          </div>
-        </div>
-        
-        <div className="glass-panel p-4 text-center text-sm text-slate-500 dark:text-slate-400 animate-slide-in" style={{ animationDelay: '200ms' }}>
-          <p>
-            Create beautiful diagrams with Mermaid syntax and AI assistance. 
-            Made with precision and care.
-          </p>
-        </div>
-      </main>
+
+          <AIPrompt 
+            prompt={prompt}
+            onDiagramGenerated={handleDiagramGenerated}
+          />
+        </main>
+
+        {/* Footer with ViewSidebar */}
+        <ViewSidebar
+          savedViews={savedViews}
+          onSaveView={handleSaveView}
+          onLoadView={handleLoadView}
+          onDeleteView={handleDeleteView}
+          onResetView={handleResetView}
+          onUpdateViews={handleUpdateViews}
+          currentZoom={previewRef.current?.getView()?.zoom || 1}
+          currentPan={previewRef.current?.getView()?.pan || { x: 0, y: 0 }}
+          isCollapsed={!showFooterPanel}
+          onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
+        />
+      </div>
     </div>
   );
 };
