@@ -73,6 +73,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   const [sortOption, setSortOption] = React.useState<SortOption>('date-desc');
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   const [dragOverParent, setDragOverParent] = React.useState<string | null>(null);
+  const [selectedViewId, setSelectedViewId] = React.useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -246,12 +247,21 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   const [editingViewId, setEditingViewId] = React.useState<string | null>(null);
   const [editingName, setEditingName] = React.useState<string>('');
 
-  // Handler per le frecce direzionali
-  const handleMoveView = (viewId: string, direction: 'left' | 'right' | 'up' | 'down') => {
-    console.log('handleMoveView called:', { viewId, direction, savedViews: savedViews.length });
+  // Handler per le frecce direzionali - ora usa la vista selezionata
+  const handleMoveView = (direction: 'left' | 'right' | 'up' | 'down') => {
+    if (!selectedViewId) {
+      toast({
+        title: "Nessuna vista selezionata",
+        description: "Seleziona una vista prima di usare le frecce",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    console.log('handleMoveView called:', { viewId: selectedViewId, direction, savedViews: savedViews.length });
     
     const updatedViews = [...savedViews];
-    const viewIndex = updatedViews.findIndex(v => v.id === viewId);
+    const viewIndex = updatedViews.findIndex(v => v.id === selectedViewId);
     const view = updatedViews[viewIndex];
     
     console.log('Found view:', { view, viewIndex });
@@ -275,11 +285,22 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       case 'right': {
         // Nidifica sotto la vista superiore (trova la vista precedente nello stesso livello)
         const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
-        const currentIndexInLevel = sameLevel.findIndex(v => v.id === viewId);
+        const currentIndexInLevel = sameLevel.findIndex(v => v.id === selectedViewId);
         if (currentIndexInLevel > 0) {
           const parentView = sameLevel[currentIndexInLevel - 1];
           updatedViews[viewIndex] = { ...view, parentId: parentView.id };
           setExpandedGroups(prev => new Set([...prev, parentView.id]));
+          toast({
+            title: "Vista nidificata",
+            description: `"${view.name}" spostata sotto "${parentView.name}"`,
+          });
+        } else {
+          toast({
+            title: "Operazione non possibile",
+            description: "Non c'è una vista precedente per la nidificazione",
+            variant: "destructive",
+          });
+          return;
         }
         break;
       }
@@ -288,13 +309,24 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
         if (view.parentId) {
           const parentView = updatedViews.find(v => v.id === view.parentId);
           updatedViews[viewIndex] = { ...view, parentId: parentView?.parentId };
+          toast({
+            title: "Vista de-nidificata",
+            description: `"${view.name}" spostata al livello superiore`,
+          });
+        } else {
+          toast({
+            title: "Operazione non possibile",
+            description: "La vista è già al livello radice",
+            variant: "destructive",
+          });
+          return;
         }
         break;
       }
       case 'up': {
         // Sposta verso l'alto nello stesso livello
         const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
-        const currentIndexInLevel = sameLevel.findIndex(v => v.id === viewId);
+        const currentIndexInLevel = sameLevel.findIndex(v => v.id === selectedViewId);
         
         if (currentIndexInLevel > 0) {
           const targetView = sameLevel[currentIndexInLevel - 1];
@@ -317,6 +349,17 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
           withoutGroups.splice(insertPos, 0, ...currentGroup, ...targetGroup);
           
           onUpdateViews(withoutGroups);
+          toast({
+            title: "Vista spostata",
+            description: `"${view.name}" spostata verso l'alto`,
+          });
+          return;
+        } else {
+          toast({
+            title: "Operazione non possibile",
+            description: "La vista è già in cima al suo livello",
+            variant: "destructive",
+          });
           return;
         }
         break;
@@ -324,7 +367,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       case 'down': {
         // Sposta verso il basso nello stesso livello
         const sameLevel = updatedViews.filter(v => v.parentId === view.parentId);
-        const currentIndexInLevel = sameLevel.findIndex(v => v.id === viewId);
+        const currentIndexInLevel = sameLevel.findIndex(v => v.id === selectedViewId);
         
         if (currentIndexInLevel < sameLevel.length - 1) {
           const targetView = sameLevel[currentIndexInLevel + 1];
@@ -347,6 +390,17 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
           withoutGroups.splice(insertPos, 0, ...targetGroup, ...currentGroup);
           
           onUpdateViews(withoutGroups);
+          toast({
+            title: "Vista spostata",
+            description: `"${view.name}" spostata verso il basso`,
+          });
+          return;
+        } else {
+          toast({
+            title: "Operazione non possibile",
+            description: "La vista è già in fondo al suo livello",
+            variant: "destructive",
+          });
           return;
         }
         break;
@@ -408,8 +462,12 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
     return (
       <div ref={setNodeRef} style={style}>
-        <div className={`flex items-center gap-2 p-1 hover:bg-muted/50 rounded group ${
-          dragOverParent === view.id ? 'bg-primary/20 border-2 border-primary border-dashed font-bold' : ''
+        <div className={`flex items-center gap-2 p-1 rounded group ${
+          selectedViewId === view.id 
+            ? 'bg-primary/10 border border-primary/50 shadow-sm' 
+            : dragOverParent === view.id 
+              ? 'bg-primary/20 border-2 border-primary border-dashed font-bold' 
+              : 'hover:bg-muted/50'
         }`}>
           <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft: `${level * 12}px` }}>
             <div {...attributes} {...listeners} className="cursor-grab hover:cursor-grabbing">
@@ -433,9 +491,14 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleLoadView(view)}
-              className="h-5 w-5 p-0 hover:bg-primary/10"
-              title="Applica vista"
+              onClick={() => {
+                setSelectedViewId(view.id);
+                handleLoadView(view);
+              }}
+              className={`h-5 w-5 p-0 hover:bg-primary/10 ${
+                selectedViewId === view.id ? 'bg-primary/20 border border-primary' : ''
+              }`}
+              title="Seleziona e applica vista"
             >
               <Eye className="h-3 w-3 text-primary" />
             </Button>
@@ -445,7 +508,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleMoveView(view.id, 'left')}
+                onClick={() => handleMoveView('left')}
                 className="h-4 w-4 p-0 hover:bg-secondary/50"
                 title="Sposta a livello superiore"
                 disabled={!view.parentId}
@@ -455,7 +518,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleMoveView(view.id, 'right')}
+                onClick={() => handleMoveView('right')}
                 className="h-4 w-4 p-0 hover:bg-secondary/50"
                 title="Nidifica sotto vista precedente"
               >
@@ -464,7 +527,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleMoveView(view.id, 'up')}
+                onClick={() => handleMoveView('up')}
                 className="h-4 w-4 p-0 hover:bg-secondary/50"
                 title="Sposta su"
               >
@@ -473,7 +536,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleMoveView(view.id, 'down')}
+                onClick={() => handleMoveView('down')}
                 className="h-4 w-4 p-0 hover:bg-secondary/50"
                 title="Sposta giù"
               >
