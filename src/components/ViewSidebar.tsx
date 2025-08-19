@@ -218,11 +218,18 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
   // Handler per le frecce direzionali
   const handleMoveView = (viewId: string, direction: 'left' | 'right' | 'up' | 'down') => {
+    console.log('handleMoveView called:', { viewId, direction, savedViews: savedViews.length });
+    
     const updatedViews = [...savedViews];
     const viewIndex = updatedViews.findIndex(v => v.id === viewId);
     const view = updatedViews[viewIndex];
     
-    if (!view) return;
+    console.log('Found view:', { view, viewIndex });
+    
+    if (!view) {
+      console.log('No view found, returning');
+      return;
+    }
 
     // Funzione per ottenere tutti i figli di una vista (ricorsiva)
     const getAllChildren = (parentId: string): SavedView[] => {
