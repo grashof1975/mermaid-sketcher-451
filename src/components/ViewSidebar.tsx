@@ -52,7 +52,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   onViewChange,
   previewRef
 }) => {
-  const { views, createView, loadView, updateView, deleteView, createFolder } = useViews(diagramId);
+  const { views, saveView, updateView, deleteView } = useViews(diagramId);
   const { comments } = useComments(diagramId);
   const [viewName, setViewName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -62,21 +62,18 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   const handleSaveView = async () => {
     if (!viewName.trim()) return;
     
-    await createView({
+    await saveView({
       name: viewName,
       zoom_level: zoom,
       pan_x: pan.x,
       pan_y: pan.y,
-      is_folder: false,
-      expanded: true,
-      sort_order: 0
+      is_folder: false
     });
     
     setViewName('');
   };
 
   const handleLoadView = async (view: any) => {
-    await loadView(view.id);
     onViewChange(view.zoom_level, { x: view.pan_x, y: view.pan_y });
     previewRef.current?.setView(view.zoom_level, { x: view.pan_x, y: view.pan_y });
   };

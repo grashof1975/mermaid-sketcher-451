@@ -22,8 +22,8 @@ export const generateMermaidDiagram = async (prompt: string): Promise<string> =>
   // Use the optimized template if available
   let optimizedPrompt = `Create a mermaid diagram for: ${prompt}. Use appropriate diagram type (flowchart, sequence, class, etc.) based on the description.`;
   
-  if (promptTemplate && typeof promptTemplate === 'object' && promptTemplate !== null) {
-    const recommendation = promptTemplate as PromptRecommendation;
+  if (promptTemplate && typeof promptTemplate === 'object' && promptTemplate !== null && !Array.isArray(promptTemplate)) {
+    const recommendation = promptTemplate as unknown as PromptRecommendation;
     if (recommendation.template) {
       optimizedPrompt = recommendation.template.replace('{description}', prompt);
     }
@@ -113,8 +113,8 @@ export const generateMermaidDiagram = async (prompt: string): Promise<string> =>
           });
 
         // Update prompt pool usage stats if we used a template
-        if (promptTemplate && typeof promptTemplate === 'object' && promptTemplate !== null) {
-          const recommendation = promptTemplate as PromptRecommendation;
+        if (promptTemplate && typeof promptTemplate === 'object' && promptTemplate !== null && !Array.isArray(promptTemplate)) {
+          const recommendation = promptTemplate as unknown as PromptRecommendation;
           if (recommendation.prompt_key) {
             await supabase
               .from('prompt_pool')

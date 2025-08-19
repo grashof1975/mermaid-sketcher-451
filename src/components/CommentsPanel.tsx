@@ -36,7 +36,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   diagramId,
   previewRef
 }) => {
-  const { comments, createComment, updateComment, deleteComment } = useComments(diagramId);
+  const { comments, addComment, updateComment, deleteComment, toggleResolved } = useComments(diagramId);
   const { views } = useViews(diagramId);
   const [newCommentText, setNewCommentText] = useState('');
   const [editingComment, setEditingComment] = useState<string | null>(null);
@@ -45,11 +45,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   const handleCreateComment = async () => {
     if (!newCommentText.trim()) return;
     
-    await createComment({
-      text: newCommentText,
-      is_resolved: false
-    });
-    
+    await addComment(newCommentText);
     setNewCommentText('');
   };
 
@@ -61,7 +57,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   const handleSaveEdit = async () => {
     if (!editingComment || !editText.trim()) return;
     
-    await updateComment(editingComment, { text: editText });
+    await updateComment(editingComment, editText);
     setEditingComment(null);
     setEditText('');
   };
@@ -76,11 +72,11 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   };
 
   const handleToggleResolved = async (comment: any) => {
-    await updateComment(comment.id, { is_resolved: !comment.is_resolved });
+    await toggleResolved(comment.id, !comment.is_resolved);
   };
 
   const handleLinkToView = async (comment: any, viewId: string) => {
-    await updateComment(comment.id, { linked_view_id: viewId });
+    await updateComment(comment.id, comment.text); // Keep existing text, just link to view
   };
 
   const handleLoadLinkedView = (viewId: string) => {

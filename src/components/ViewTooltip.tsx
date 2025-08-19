@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Eye, MessageSquare, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Comment, ProvisionalView } from '@/types/comments';
-import { SavedView } from '@/components/ViewSidebar';
+import { SavedView } from '@/types/database';
 
 interface ViewTooltipProps {
   view: SavedView;
@@ -24,17 +25,17 @@ const ViewTooltip: React.FC<ViewTooltipProps> = ({
   onApplyProvisionalView,
   children
 }) => {
-  // Ottieni i commenti per questa vista
+  // Get comments for this view
   const viewComments = comments.filter(comment => comment.viewId === view.id);
   
-  // Ottieni le viste provvisorie per questa vista (dai commenti collegati)
+  // Get provisional views for this view (from linked comments)
   const viewProvisionalViews = provisionalViews.filter(pv => 
     viewComments.some(c => c.linkedViewId === pv.id)
   );
 
   const formatZoom = (zoom: number) => `${Math.round(zoom * 100)}%`;
-  const formatPan = (pan: { x: number; y: number }) => 
-    `X: ${Math.round(pan.x)}, Y: ${Math.round(pan.y)}`;
+  const formatPan = (panX: number, panY: number) => 
+    `X: ${Math.round(panX)}, Y: ${Math.round(panY)}`;
 
   return (
     <Popover>
@@ -43,20 +44,20 @@ const ViewTooltip: React.FC<ViewTooltipProps> = ({
       </PopoverTrigger>
       <PopoverContent className="w-80 p-4" side="right" align="start">
         <div className="space-y-3">
-          {/* Header della vista */}
+          {/* View header */}
           <div className="flex items-center gap-2">
             <Eye className="h-4 w-4 text-primary" />
             <h4 className="font-medium truncate">{view.name}</h4>
           </div>
           
-          {/* Dettagli vista */}
+          {/* View details */}
           <div className="text-sm text-muted-foreground space-y-1">
-            <div>Zoom: {formatZoom(view.zoom)}</div>
-            <div>Pan: {formatPan(view.pan)}</div>
-            <div>Salvata: {new Date(view.timestamp).toLocaleString()}</div>
+            <div>Zoom: {formatZoom(view.zoom_level)}</div>
+            <div>Pan: {formatPan(view.pan_x, view.pan_y)}</div>
+            <div>Saved: {new Date(view.created_at).toLocaleString()}</div>
           </div>
 
-          {/* Pulsante per caricare la vista */}
+          {/* Load view button */}
           <Button 
             size="sm" 
             variant="outline" 
@@ -64,17 +65,17 @@ const ViewTooltip: React.FC<ViewTooltipProps> = ({
             className="w-full"
           >
             <Eye className="h-4 w-4 mr-2" />
-            Carica Vista
+            Load View
           </Button>
 
-          {/* Commenti */}
+          {/* Comments */}
           {viewComments.length > 0 && (
             <>
               <Separator />
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-primary" />
-                  <span className="font-medium text-sm">Commenti ({viewComments.length})</span>
+                  <span className="font-medium text-sm">Comments ({viewComments.length})</span>
                 </div>
                 
                 <div className="space-y-2 max-h-32 overflow-y-auto">
@@ -91,14 +92,14 @@ const ViewTooltip: React.FC<ViewTooltipProps> = ({
             </>
           )}
 
-          {/* Viste provvisorie */}
+          {/* Provisional views */}
           {viewProvisionalViews.length > 0 && (
             <>
               <Separator />
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Upload className="h-4 w-4 text-accent" />
-                  <span className="font-medium text-sm">Viste Provvisorie ({viewProvisionalViews.length})</span>
+                  <span className="font-medium text-sm">Provisional Views ({viewProvisionalViews.length})</span>
                 </div>
                 
                 <div className="space-y-2">
@@ -110,7 +111,7 @@ const ViewTooltip: React.FC<ViewTooltipProps> = ({
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium truncate">{pv.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {formatZoom(pv.zoom)} • {formatPan(pv.pan)}
+                              {formatZoom(pv.zoom)} • {formatPan(pv.pan.x, pv.pan.y)}
                             </p>
                             {relatedComment && (
                               <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
@@ -135,10 +136,10 @@ const ViewTooltip: React.FC<ViewTooltipProps> = ({
             </>
           )}
 
-          {/* Messaggio se non ci sono commenti */}
+          {/* No comments message */}
           {viewComments.length === 0 && (
             <div className="text-xs text-muted-foreground text-center py-2">
-              Nessun commento per questa vista
+              No comments for this view
             </div>
           )}
         </div>
