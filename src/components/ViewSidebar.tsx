@@ -1,10 +1,13 @@
 import React from 'react';
-import { Save, Eye, Trash2, RotateCcw } from 'lucide-react';
+import { Save, Eye, Trash2, RotateCcw, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
+
+export type SortOption = 'name-asc' | 'name-desc' | 'date-asc' | 'date-desc' | 'zoom-asc' | 'zoom-desc';
 
 export interface SavedView {
   id: string;
@@ -34,6 +37,29 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   currentPan
 }) => {
   const [newViewName, setNewViewName] = React.useState('');
+  const [sortOption, setSortOption] = React.useState<SortOption>('date-desc');
+
+  // Sort views based on selected option
+  const sortedViews = React.useMemo(() => {
+    const views = [...savedViews];
+    
+    switch (sortOption) {
+      case 'name-asc':
+        return views.sort((a, b) => a.name.localeCompare(b.name));
+      case 'name-desc':
+        return views.sort((a, b) => b.name.localeCompare(a.name));
+      case 'date-asc':
+        return views.sort((a, b) => a.timestamp - b.timestamp);
+      case 'date-desc':
+        return views.sort((a, b) => b.timestamp - a.timestamp);
+      case 'zoom-asc':
+        return views.sort((a, b) => a.zoom - b.zoom);
+      case 'zoom-desc':
+        return views.sort((a, b) => b.zoom - a.zoom);
+      default:
+        return views;
+    }
+  }, [savedViews, sortOption]);
 
   const handleSaveView = () => {
     if (!newViewName.trim()) {
@@ -116,17 +142,35 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       
       {/* Saved views list */}
       <div className="flex-1 space-y-2">
-        <Label className="text-sm font-medium">
-          Viste Salvate ({savedViews.length})
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">
+            Viste Salvate ({savedViews.length})
+          </Label>
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+            <Select value={sortOption} onValueChange={(value: SortOption) => setSortOption(value)}>
+              <SelectTrigger className="h-8 w-auto min-w-[120px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date-desc">Più recenti</SelectItem>
+                <SelectItem value="date-asc">Più vecchie</SelectItem>
+                <SelectItem value="name-asc">Nome A-Z</SelectItem>
+                <SelectItem value="name-desc">Nome Z-A</SelectItem>
+                <SelectItem value="zoom-desc">Zoom alto</SelectItem>
+                <SelectItem value="zoom-asc">Zoom basso</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
         
         <div className="space-y-2 max-h-96 overflow-y-auto">
-          {savedViews.length === 0 ? (
+          {sortedViews.length === 0 ? (
             <div className="text-center text-muted-foreground text-sm py-8">
               Nessuna vista salvata
             </div>
           ) : (
-            savedViews.map((view) => (
+            sortedViews.map((view) => (
               <div 
                 key={view.id} 
                 className="border border-border rounded-lg p-3 space-y-2 hover:bg-muted/50 transition-colors"
