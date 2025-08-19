@@ -72,6 +72,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
   const [newViewName, setNewViewName] = React.useState('');
   const [sortOption, setSortOption] = React.useState<SortOption>('date-desc');
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+  const [dragOverParent, setDragOverParent] = React.useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -80,8 +81,32 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
     })
   );
 
+  const handleDragOver = (event: any) => {
+    const { active, over } = event;
+    
+    if (!over || !active) {
+      setDragOverParent(null);
+      return;
+    }
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    
+    if (activeId !== overId) {
+      const delta = event.delta;
+      const isRightwardMovement = delta.x > 20;
+      
+      if (isRightwardMovement) {
+        setDragOverParent(overId);
+      } else {
+        setDragOverParent(null);
+      }
+    }
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setDragOverParent(null);
 
     if (!over) return;
 
@@ -99,17 +124,21 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
       // Get the drag position data
       const delta = event.delta;
       const isRightwardMovement = delta.x > 20; // Movimento verso destra
-      const isSmallVerticalMovement = Math.abs(delta.y) < 30; // Soglia per movimento piccolo
       
-      if (isRightwardMovement || isSmallVerticalMovement) {
-        // Movimento verso destra o piccolo = nidificazione (rendere child)
+      if (isRightwardMovement) {
+        // Movimento verso destra = nidificazione (rendere child)
         const activeIndex = updatedViews.findIndex(v => v.id === activeId);
         updatedViews[activeIndex] = { ...activeView, parentId: overId };
         
         // Expand the parent view to show the new child
         setExpandedGroups(prev => new Set([...prev, overId]));
+        
+        toast({
+          title: "Vista nidificata",
+          description: `"${activeView.name}" è stata spostata sotto "${overView.name}"`,
+        });
       } else {
-        // Movimento ampio = riordinamento
+        // Movimento normale = riordinamento
         const oldIndex = savedViews.findIndex(v => v.id === activeId);
         const newIndex = savedViews.findIndex(v => v.id === overId);
         
@@ -379,7 +408,9 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
 
     return (
       <div ref={setNodeRef} style={style}>
-        <div className="flex items-center gap-2 p-1 hover:bg-muted/50 rounded group">
+        <div className={`flex items-center gap-2 p-1 hover:bg-muted/50 rounded group ${
+          dragOverParent === view.id ? 'bg-primary/20 border-2 border-primary border-dashed font-bold' : ''
+        }`}>
           <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft: `${level * 12}px` }}>
             <div {...attributes} {...listeners} className="cursor-grab hover:cursor-grabbing">
               <GripVertical className="h-3 w-3 text-muted-foreground" />
@@ -629,6 +660,7 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEnd}
+                  onDragOver={handleDragOver}
                 >
                   <SortableContext
                     items={organizedViews.rootViews.map(v => v.id)}
