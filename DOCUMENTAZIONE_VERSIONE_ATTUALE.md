@@ -297,7 +297,19 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 | view_count | INTEGER | Numero visualizzazioni |
 | created_at | TIMESTAMP | Data di creazione |
 
-**Operatività**: Gestione accessi granulare, tracking utilizzo condivisioni, sicurezza accessi, audit trail modifiche collaborative.
+#### TABLE_14: `table_metadata` (Tabella Centralizzata di Metadati)
+| Campo | Tipo | Descrizione |
+|-------|------|-------------|
+| id | UUID | Identificatore unico del record |
+| table_identifier | VARCHAR(20) | Identificatore univoco (TABLE_01, TABLE_02, etc.) |
+| table_name | VARCHAR(100) | Nome effettivo della tabella nel database |
+| display_name | VARCHAR(150) | Nome visualizzato nell'interfaccia |
+| description | TEXT | Descrizione della funzione della tabella |
+| entity_type | VARCHAR(50) | Tipologia entità (core, system, analytics, etc.) |
+| created_at | TIMESTAMP | Data creazione |
+| updated_at | TIMESTAMP | Data ultima modifica |
+
+**Operatività**: Gestione accessi granulare, tracking utilizzo condivisioni, sicurezza accessi, audit trail modifiche collaborative. La tabella `table_metadata` mantiene la mappatura centralizzata tra identificatori logici (TABLE_XX) e nomi fisici delle tabelle, facilitando manutenzione e refactoring del database.
 
 ---
 
