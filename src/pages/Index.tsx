@@ -1,18 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Header from '@/components/Header';
 import Editor from '@/components/Editor';
 import Preview, { PreviewRef } from '@/components/Preview';
 import AIPrompt from '@/components/AIPrompt';
 import ViewSidebar, { SavedView } from '@/components/ViewSidebar';
 import CommentsPanel from '@/components/CommentsPanel';
+import { DiagramsList } from '@/components/DiagramsList';
 import { Comment, ProvisionalView } from '@/types/comments';
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { saveAs } from 'file-saver';
+import { debounce } from 'lodash';
+import { useAuth } from '@/contexts/AuthProvider';
+import { supabase } from '@/integrations/supabase/client';
 
 const DEFAULT_DIAGRAM = `graph TD
     A[Start] --> B{Decision}
@@ -21,7 +25,32 @@ const DEFAULT_DIAGRAM = `graph TD
     C --> E[Result]
     D --> E`;
 
+interface Diagram {
+  id: string;
+  title: string;
+  mermaid_code: string;
+  description?: string;
+  is_public: boolean;
+  version: number;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+  user_id?: string;
+}
+
+interface UserPreferences {
+  theme_preference: string;
+  toast_notifications_enabled: boolean;
+  keyboard_shortcuts_enabled: boolean;
+  auto_save_interval: number;
+  default_zoom_level: number;
+  ui_layout_config: any;
+}
+
 const Index = () => {
+  const { user, loading: authLoading } = useAuth();
+  
+  // Original state (kept identical)
   const [code, setCode] = useState<string>(DEFAULT_DIAGRAM);
   const [prompt, setPrompt] = useState<string>("");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
@@ -35,13 +64,204 @@ const Index = () => {
   const [pendingCommentViewId, setPendingCommentViewId] = useState<string | null>(null);
   const previewRef = useRef<PreviewRef>(null);
 
-  // Initialize theme on component mount
-  useEffect(() => {
-    const isDark = document.documentElement.classList.contains('dark');
-    setIsDarkMode(isDark);
-  }, []);
+  // New database state
+  const [currentDiagram, setCurrentDiagram] = useState<Diagram | null>(null);
+  const [diagrams, setDiagrams] = useState<Diagram[]>([]);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences>({
+    theme_preference: 'system',
+    toast_notifications_enabled: true,
+    keyboard_shortcuts_enabled: true,
+    auto_save_interval: 30,
+    default_zoom_level: 1.00,
+    ui_layout_config: {}
+  });
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  const toggleTheme = () => {
+  // Database functions
+  const loadUserPreferences = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading preferences:', error);
+      } else if (data) {
+        setUserPreferences(data);
+        
+        // Apply theme preference
+        if (data.theme_preference === 'dark') {
+          setIsDarkMode(true);
+          document.documentElement.classList.add('dark');
+        } else if (data.theme_preference === 'light') {
+          setIsDarkMode(false);
+          document.documentElement.classList.remove('dark');
+        }
+      } else {
+        // Create default preferences
+        await saveUserPreferences(userPreferences);
+      }
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+    }
+  };
+
+  const saveUserPreferences = async (preferences: Partial<UserPreferences>) => {
+    if (!user) return;
+    
+    try {
+      const updatedPrefs = { ...userPreferences, ...preferences };
+      
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .upsert({
+          user_id: user.id,
+          ...updatedPrefs
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error saving preferences:', error);
+      } else if (data) {
+        setUserPreferences(data);
+      }
+    } catch (error) {
+      console.error('Error saving preferences:', error);
+    }
+  };
+
+  const saveDiagram = async (title?: string, diagramCode?: string, description?: string) => {
+    if (!user || !diagramCode?.trim()) return;
+
+    try {
+      const diagramData = {
+        user_id: user.id,
+        title: title || currentDiagram?.title || 'Untitled Diagram',
+        mermaid_code: diagramCode,
+        description: description || currentDiagram?.description,
+        tags: currentDiagram?.tags || [],
+        version: (currentDiagram?.version || 0) + 1,
+        is_public: currentDiagram?.is_public || false
+      };
+
+      if (currentDiagram?.id) {
+        // Update existing
+        const { data, error } = await supabase
+          .from('diagrams')
+          .update(diagramData)
+          .eq('id', currentDiagram.id)
+          .eq('user_id', user.id)
+          .select()
+          .single();
+        
+        if (error) {
+          throw error;
+        } else if (data) {
+          setCurrentDiagram(data);
+          setHasUnsavedChanges(false);
+        }
+      } else {
+        // Create new
+        const { data, error } = await supabase
+          .from('diagrams')
+          .insert(diagramData)
+          .select()
+          .single();
+        
+        if (error) {
+          throw error;
+        } else if (data) {
+          setCurrentDiagram(data);
+          setHasUnsavedChanges(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving diagram:', error);
+      if (userPreferences.toast_notifications_enabled) {
+        toast({
+          title: "Errore salvataggio",
+          description: "Impossibile salvare il diagramma",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const loadDiagram = (diagram: Diagram) => {
+    setCurrentDiagram(diagram);
+    setCode(diagram.mermaid_code);
+    setHasUnsavedChanges(false);
+    
+    if (userPreferences.toast_notifications_enabled) {
+      toast({
+        title: "Diagramma caricato",
+        description: `"${diagram.title}" caricato con successo`,
+      });
+    }
+  };
+
+  const createNewDiagram = () => {
+    setCurrentDiagram(null);
+    setCode(DEFAULT_DIAGRAM);
+    setHasUnsavedChanges(false);
+    
+    if (userPreferences.toast_notifications_enabled) {
+      toast({
+        title: "Nuovo diagramma",
+        description: "Nuovo diagramma creato",
+      });
+    }
+  };
+
+  // Auto-save debounced function
+  const debouncedSave = useCallback(
+    debounce(async (title: string, diagramCode: string) => {
+      if (user && diagramCode.trim() && diagramCode !== DEFAULT_DIAGRAM) {
+        await saveDiagram(title, diagramCode);
+      }
+    }, userPreferences.auto_save_interval * 1000),
+    [user, userPreferences.auto_save_interval, currentDiagram]
+  );
+
+  // Initialize user data when user changes
+  useEffect(() => {
+    if (user && !authLoading) {
+      loadUserPreferences();
+    } else if (!user) {
+      // Reset to defaults when logged out
+      setCurrentDiagram(null);
+      setDiagrams([]);
+      setCode(DEFAULT_DIAGRAM);
+      setHasUnsavedChanges(false);
+    }
+  }, [user, authLoading]);
+
+  // Auto-save when code changes
+  useEffect(() => {
+    if (code !== currentDiagram?.mermaid_code && code !== DEFAULT_DIAGRAM) {
+      setHasUnsavedChanges(true);
+      
+      if (user) {
+        const title = currentDiagram?.title || 'Auto-saved Diagram';
+        debouncedSave(title, code);
+      }
+    }
+  }, [code, currentDiagram, debouncedSave, user]);
+
+  // Cleanup debounced function
+  useEffect(() => {
+    return () => {
+      debouncedSave.cancel();
+    };
+  }, [debouncedSave]);
+
+  // Update theme preference when theme changes
+  const toggleTheme = async () => {
     const newDarkMode = !isDarkMode;
     setIsDarkMode(newDarkMode);
     
@@ -51,8 +271,14 @@ const Index = () => {
       document.documentElement.classList.remove('dark');
     }
     
+    // Save theme preference
+    if (user) {
+      await saveUserPreferences({
+        theme_preference: newDarkMode ? 'dark' : 'light'
+      });
+    }
+    
     // Re-render the diagram with the new theme
-    // This forces the Mermaid renderer to use the new theme
     const currentCode = code;
     setCode('');
     setTimeout(() => setCode(currentCode), 10);
@@ -317,10 +543,20 @@ const Index = () => {
           
           <ResizablePanel defaultSize={25} minSize={15} maxSize={50}>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="diagrams">Diagrammi</TabsTrigger>
                 <TabsTrigger value="views">Viste</TabsTrigger>
                 <TabsTrigger value="comments">Commenti</TabsTrigger>
               </TabsList>
+              
+              <TabsContent value="diagrams" className="h-full mt-0">
+                <DiagramsList
+                  currentDiagram={currentDiagram}
+                  onLoadDiagram={loadDiagram}
+                  onCreateNew={createNewDiagram}
+                  onDiagramsChange={setDiagrams}
+                />
+              </TabsContent>
               
               <TabsContent value="views" className="h-full mt-0">
                 <ViewSidebar
