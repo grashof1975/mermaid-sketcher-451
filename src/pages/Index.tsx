@@ -1,202 +1,378 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from '@/components/Header';
 import Editor from '@/components/Editor';
-import Preview from '@/components/Preview';
-import ViewSidebar from '@/components/ViewSidebar';
+import Preview, { PreviewRef } from '@/components/Preview';
+import AIPrompt from '@/components/AIPrompt';
+import ViewSidebar, { SavedView } from '@/components/ViewSidebar';
 import CommentsPanel from '@/components/CommentsPanel';
-import { useAuth } from '@/hooks/useAuth';
-import { useDiagrams } from '@/hooks/useDiagrams';
-import DiagramGrid from '@/components/Dashboard/DiagramGrid';
-import LoginModal from '@/components/Auth/LoginModal';
-import { Diagram } from '@/types/database';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft, FileText } from 'lucide-react';
-import {
-  ResizablePanel,
-  ResizablePanelGroup,
-  ResizableHandle,
-} from "@/components/ui/resizable";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { PreviewRef } from '@/components/Preview';
-import { useViews } from '@/hooks/useViews';
-import { useComments } from '@/hooks/useComments';
+import { Comment, ProvisionalView } from '@/types/comments';
+import { toast } from "@/components/ui/use-toast";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { saveAs } from 'file-saver';
+
+const DEFAULT_DIAGRAM = `graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action]
+    B -->|No| D[Alternative Action]
+    C --> E[Result]
+    D --> E`;
 
 const Index = () => {
-  const { user } = useAuth();
-  const { currentDiagram, setCurrentDiagram } = useDiagrams();
-  const [code, setCode] = useState<string>('graph TD\n    A[Start] --> B[Process]\n    B --> C[End]');
-  const [aiPrompt, setAIPrompt] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'views' | 'comments'>('views');
-  const { views: savedViews } = useViews(currentDiagram?.id);
-  const { comments } = useComments(currentDiagram?.id);
-  const [zoom, setZoom] = useState<number>(1);
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-
+  const [code, setCode] = useState<string>(DEFAULT_DIAGRAM);
+  const [prompt, setPrompt] = useState<string>("");
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [provisionalViews, setProvisionalViews] = useState<ProvisionalView[]>([]);
+  const [currentView, setCurrentView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
+  const [showLeftPanel, setShowLeftPanel] = useState<boolean>(true);
+  const [showFooterPanel, setShowFooterPanel] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<string>("views");
+  const [pendingCommentViewId, setPendingCommentViewId] = useState<string | null>(null);
   const previewRef = useRef<PreviewRef>(null);
 
-  // Update code when diagram changes
-  const handleSelectDiagram = (diagram: Diagram) => {
-    setCurrentDiagram(diagram);
-    setCode(diagram.mermaid_code);
-    localStorage.setItem('current_diagram_id', diagram.id);
+  // Initialize theme on component mount
+  useEffect(() => {
+    const isDark = document.documentElement.classList.contains('dark');
+    setIsDarkMode(isDark);
+  }, []);
+
+  const toggleTheme = () => {
+    const newDarkMode = !isDarkMode;
+    setIsDarkMode(newDarkMode);
+    
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
+    // Re-render the diagram with the new theme
+    // This forces the Mermaid renderer to use the new theme
+    const currentCode = code;
+    setCode('');
+    setTimeout(() => setCode(currentCode), 10);
   };
 
-  const handleBackToDashboard = () => {
-    setCurrentDiagram(null);
-    localStorage.removeItem('current_diagram_id');
-  };
-
-  const handleDiagramGenerated = (diagram: string) => {
-    setCode(diagram);
-    if (currentDiagram) {
-      // Update existing diagram
-      // updateDiagram(currentDiagram.id, { mermaid_code: diagram });
+  const handleExport = () => {
+    try {
+      const svgElement = document.querySelector('.diagram-container svg');
+      if (!svgElement) {
+        toast({
+          title: "Export failed",
+          description: "No diagram to export",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Get SVG content
+      const svgData = new XMLSerializer().serializeToString(svgElement);
+      const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+      
+      // Generate filename from first line of diagram or use default
+      let filename = 'mermaid-diagram.svg';
+      const firstLine = code.split('\n')[0];
+      if (firstLine) {
+        const cleanName = firstLine
+          .replace(/[^\w\s]/gi, '')
+          .trim()
+          .replace(/\s+/g, '-')
+          .toLowerCase();
+        if (cleanName) {
+          filename = `${cleanName}.svg`;
+        }
+      }
+      
+      saveAs(svgBlob, filename);
+      
+      toast({
+        title: "Export successful",
+        description: `Saved as ${filename}`,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export diagram",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleViewChange = (zoom: number, pan: { x: number; y: number }) => {
-    setZoom(zoom);
-    setPan(pan);
+  const handleDiagramGenerated = (generatedCode: string) => {
+    setCode(generatedCode);
   };
 
-  if (!user) {
-    return (
-      <div className="h-screen flex flex-col">
-        <Header />
-        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-          <div className="text-center space-y-6 max-w-md">
-            <FileText className="h-20 w-20 text-primary mx-auto" />
-            <div className="space-y-2">
-              <h1 className="text-3xl font-bold">Welcome to AI Diagram Creator</h1>
-              <p className="text-lg text-muted-foreground">
-                Create beautiful diagrams with the power of AI
-              </p>
-            </div>
-            <div className="space-y-4">
-              <LoginModal>
-                <Button size="lg" className="w-full">
-                  Get Started - Sign In
-                </Button>
-              </LoginModal>
-              <p className="text-sm text-muted-foreground">
-                Sign in to save your diagrams, create views, and collaborate with others
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // View management functions
+  const handleViewChange = (zoom: number, pan: { x: number; y: number }) => {
+    setCurrentView({ zoom, pan });
+  };
 
-  if (!currentDiagram) {
-    return (
-      <div className="h-screen flex flex-col">
-        <Header />
-        <div className="flex-1 overflow-hidden">
-          <DiagramGrid onSelectDiagram={handleSelectDiagram} />
-        </div>
-      </div>
-    );
-  }
+  const handleSaveView = (name: string) => {
+    const newView: SavedView = {
+      id: `view-${Date.now()}`,
+      name,
+      zoom: currentView.zoom,
+      pan: currentView.pan,
+      timestamp: Date.now()
+    };
+    setSavedViews(prev => [...prev, newView]);
+  };
+
+  const handleLoadView = (view: SavedView) => {
+    previewRef.current?.setView(view.zoom, view.pan);
+    setCurrentView({ zoom: view.zoom, pan: view.pan });
+  };
+
+  const handleDeleteView = (id: string) => {
+    setSavedViews(prev => prev.filter(view => view.id !== id));
+  };
+
+  const handleUpdateViews = (views: SavedView[]) => {
+    setSavedViews(views);
+  };
+
+  const handleResetView = () => {
+    previewRef.current?.resetView();
+    setCurrentView({ zoom: 1, pan: { x: 0, y: 0 } });
+  };
+
+  // Comments management functions
+  const handleAddComment = (commentData: Omit<Comment, 'id' | 'timestamp'>) => {
+    const newComment: Comment = {
+      ...commentData,
+      id: `comment-${Date.now()}`,
+      timestamp: Date.now(),
+      // Se c'è un viewId in sospeso, collegalo
+      viewId: pendingCommentViewId || commentData.viewId,
+    };
+    setComments(prev => [...prev, newComment]);
+    setPendingCommentViewId(null); // Reset pending viewId
+  };
+
+  const handleCreateCommentForView = (viewId: string) => {
+    // Imposta il viewId in sospeso e cambia alla tab commenti
+    setPendingCommentViewId(viewId);
+    setActiveTab("comments");
+    
+    // Se il pannello è collassato, espandilo
+    if (!showFooterPanel) {
+      setShowFooterPanel(true);
+    }
+  };
+
+  const handleDeleteComment = (id: string) => {
+    const comment = comments.find(c => c.id === id);
+    if (comment?.linkedViewId && comment.isProvisional) {
+      // Rimuovi anche la vista provvisoria collegata
+      setProvisionalViews(prev => prev.filter(v => v.id !== comment.linkedViewId));
+    }
+    setComments(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleCreateProvisionalView = (commentId: string, viewName: string) => {
+    const newProvisionalView: ProvisionalView = {
+      id: `provisional-${Date.now()}`,
+      name: viewName,
+      zoom: currentView.zoom,
+      pan: currentView.pan,
+      timestamp: Date.now(),
+      commentId,
+      isProvisional: true,
+    };
+
+    setProvisionalViews(prev => [...prev, newProvisionalView]);
+    
+    // Aggiorna il commento per collegarlo alla vista provvisoria
+    setComments(prev => prev.map(comment => 
+      comment.id === commentId 
+        ? { ...comment, linkedViewId: newProvisionalView.id, isProvisional: true }
+        : comment
+    ));
+  };
+
+  const handleLoadProvisionalView = (view: SavedView | ProvisionalView) => {
+    previewRef.current?.setView(view.zoom, view.pan);
+  };
+
+  const handleUpdateViewToCurrentState = (viewId: string) => {
+    setSavedViews(prev => prev.map(view => 
+      view.id === viewId 
+        ? { ...view, zoom: currentView.zoom, pan: currentView.pan, timestamp: Date.now() }
+        : view
+    ));
+  };
+
+  const handleApplyProvisionalViewToSaved = (viewId: string, provisionalViewId: string) => {
+    const provisionalView = provisionalViews.find(v => v.id === provisionalViewId);
+    
+    if (provisionalView) {
+      setSavedViews(prev => prev.map(view => 
+        view.id === viewId 
+          ? { ...view, zoom: provisionalView.zoom, pan: provisionalView.pan, timestamp: Date.now() }
+          : view
+      ));
+      
+      toast({
+        title: "Vista aggiornata",
+        description: `Vista "${savedViews.find(v => v.id === viewId)?.name}" aggiornata con la vista provvisoria`,
+      });
+    }
+  };
+
+  const handleUnlinkView = (commentId: string) => {
+    const comment = comments.find(c => c.id === commentId);
+    if (comment?.linkedViewId && comment.isProvisional) {
+      // Rimuovi la vista provvisoria
+      setProvisionalViews(prev => prev.filter(v => v.id !== comment.linkedViewId));
+    }
+    
+    // Rimuovi il collegamento dal commento
+    setComments(prev => prev.map(c => 
+      c.id === commentId 
+        ? { ...c, linkedViewId: undefined, isProvisional: undefined }
+        : c
+    ));
+    
+    toast({
+      title: "Vista scollegata",
+      description: "La vista è stata scollegata dal commento",
+    });
+  };
+
+  const handleEditComment = (commentId: string, newText: string) => {
+    setComments(prev => prev.map(comment =>
+      comment.id === commentId
+        ? { ...comment, text: newText }
+        : comment
+    ));
+    
+    toast({
+      title: "Commento aggiornato",
+      description: "Il commento è stato modificato",
+    });
+  };
 
   return (
-    <div className="h-screen flex flex-col">
-      <Header />
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-800 animate-fade-in">
+      <Header 
+        onExport={handleExport} 
+        toggleTheme={toggleTheme}
+        isDarkMode={isDarkMode}
+      />
       
-      {/* Breadcrumb */}
-      <div className="border-b border-slate-200 dark:border-slate-800 px-6 py-2">
-        <div className="flex items-center space-x-2 text-sm">
-          <Button variant="ghost" size="sm" onClick={handleBackToDashboard}>
-            <ArrowLeft className="mr-1 h-3 w-3" />
-            Dashboard
-          </Button>
-          <span className="text-muted-foreground">/</span>
-          <span className="font-medium">{currentDiagram.title}</span>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup direction="horizontal" className="h-full">
-          
-          {/* Left Sidebar - Views & Comments */}
-          <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'views' | 'comments')} className="h-full flex flex-col">
-              <div className="border-b border-slate-200 dark:border-slate-800 px-4 py-2">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="views" className="text-xs">
-                    Views
-                    {savedViews.length > 0 && (
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        {savedViews.length}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="comments" className="text-xs">
-                    Comments
-                    {comments.length > 0 && (
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        {comments.length}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                </TabsList>
-              </div>
+      <div className="flex-1 flex flex-col relative">
+        <ResizablePanelGroup direction="vertical" className="flex-1">
+          <ResizablePanel defaultSize={75} minSize={50}>
+            <ResizablePanelGroup direction="horizontal" className="rounded-lg border bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm m-6">
+              {showLeftPanel && (
+                <>
+                  <ResizablePanel defaultSize={35} minSize={25}>
+                    <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0">
+                      <Editor 
+                        value={code} 
+                        onChange={setCode} 
+                        className="flex-1"
+                        promptValue={prompt}
+                        onPromptChange={setPrompt}
+                      />
+                      <Separator className="my-4" />
+                      <AIPrompt 
+                        prompt={prompt} 
+                        onDiagramGenerated={handleDiagramGenerated} 
+                      />
+                    </div>
+                  </ResizablePanel>
+                  <ResizableHandle withHandle />
+                </>
+              )}
               
-              <div className="flex-1 overflow-hidden">
-                <TabsContent value="views" className="h-full mt-0">
-                  <ViewSidebar
-                    diagramId={currentDiagram.id}
-                    zoom={zoom}
-                    pan={pan}
+              <ResizablePanel defaultSize={showLeftPanel ? 65 : 100} minSize={30}>
+                <div className="glass-panel p-4 flex flex-col h-full animate-slide-in border-0 relative" style={{ animationDelay: '100ms' }}>
+                  <Preview 
+                    ref={previewRef}
+                    code={code} 
+                    className="flex-1" 
                     onViewChange={handleViewChange}
-                    previewRef={previewRef}
                   />
-                </TabsContent>
-                
-                <TabsContent value="comments" className="h-full mt-0">
-                  <CommentsPanel
-                    diagramId={currentDiagram.id}
-                    previewRef={previewRef}
-                  />
-                </TabsContent>
-              </div>
-            </Tabs>
-          </ResizablePanel>
-
-          <ResizableHandle />
-
-          {/* Main Content Area */}
-          <ResizablePanel defaultSize={60} minSize={40}>
-            <ResizablePanelGroup direction="vertical">
-              
-              {/* Editor */}
-              <ResizablePanel defaultSize={40} minSize={20} maxSize={70}>
-                <Editor 
-                  code={code} 
-                  onCodeChange={setCode}
-                  aiPrompt={aiPrompt}
-                  onAIPromptChange={setAIPrompt}
-                  onDiagramGenerated={handleDiagramGenerated}
-                />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowFooterPanel(!showFooterPanel)}
+                    className="absolute right-2 bottom-2 z-10 bg-background/80 backdrop-blur-sm"
+                  >
+                    {showFooterPanel ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </Button>
+                </div>
               </ResizablePanel>
-
-              <ResizableHandle />
-
-              {/* Preview */}
-              <ResizablePanel defaultSize={60} minSize={30}>
-                <Preview 
-                  ref={previewRef}
-                  code={code} 
-                  onViewChange={handleViewChange}
-                />
-              </ResizablePanel>
-
             </ResizablePanelGroup>
           </ResizablePanel>
-
+          
+          <ResizableHandle withHandle />
+          
+          <ResizablePanel defaultSize={25} minSize={15} maxSize={50}>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="views">Viste</TabsTrigger>
+                <TabsTrigger value="comments">Commenti</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="views" className="h-full mt-0">
+                <ViewSidebar
+                  savedViews={savedViews}
+                  onSaveView={handleSaveView}
+                  onLoadView={handleLoadView}
+                  onDeleteView={handleDeleteView}
+                  onResetView={handleResetView}
+                  onUpdateViews={handleUpdateViews}
+                  setSavedViews={setSavedViews}
+                  currentZoom={previewRef.current?.getView()?.zoom || 1}
+                  currentPan={previewRef.current?.getView()?.pan || { x: 0, y: 0 }}
+                  isCollapsed={!showFooterPanel}
+                  onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
+                  comments={comments}
+                  provisionalViews={provisionalViews}
+                  onCreateCommentForView={handleCreateCommentForView}
+                  onUpdateViewToCurrentState={handleUpdateViewToCurrentState}
+                  onApplyProvisionalViewToSaved={handleApplyProvisionalViewToSaved}
+                />
+              </TabsContent>
+              
+              <TabsContent value="comments" className="h-full mt-0">
+                <CommentsPanel
+                  comments={comments}
+                  provisionalViews={provisionalViews}
+                  savedViews={savedViews}
+                  currentView={currentView}
+                  onAddComment={handleAddComment}
+                  onDeleteComment={handleDeleteComment}
+                  onEditComment={handleEditComment}
+                  onCreateProvisionalView={handleCreateProvisionalView}
+                  onLoadView={handleLoadProvisionalView}
+                  onUnlinkView={handleUnlinkView}
+                  pendingViewId={pendingCommentViewId}
+                />
+              </TabsContent>
+            </Tabs>
+          </ResizablePanel>
         </ResizablePanelGroup>
+        
+        {/* Toggle buttons */}
+        <div className="absolute top-10 left-10 z-20 flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowLeftPanel(!showLeftPanel)}
+            className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-border/50"
+          >
+            {showLeftPanel ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -2,30 +2,23 @@
 import React, { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
-import { generateMermaidDiagram } from '@/utils/api';
-import { useToast } from "@/hooks/use-toast";
 
 interface EditorProps {
-  code: string;
-  onCodeChange: (code: string) => void;
-  aiPrompt: string;
-  onAIPromptChange: (prompt: string) => void;
-  onDiagramGenerated: (diagram: string) => void;
+  value: string;
+  onChange: (value: string) => void;
   className?: string;
+  promptValue: string;
+  onPromptChange: (value: string) => void;
 }
 
 const Editor: React.FC<EditorProps> = ({
-  code,
-  onCodeChange,
-  aiPrompt,
-  onAIPromptChange,
-  onDiagramGenerated,
-  className
+  value,
+  onChange,
+  className,
+  promptValue,
+  onPromptChange
 }) => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
-  const { toast } = useToast();
 
   useEffect(() => {
     if (editorRef.current) {
@@ -33,15 +26,15 @@ const Editor: React.FC<EditorProps> = ({
       editorRef.current.style.height = 'auto';
       editorRef.current.style.height = `${editorRef.current.scrollHeight}px`;
     }
-  }, [code]);
+  }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Tab') {
       e.preventDefault();
       const start = e.currentTarget.selectionStart;
       const end = e.currentTarget.selectionEnd;
-      const newValue = code.substring(0, start) + '  ' + code.substring(end);
-      onCodeChange(newValue);
+      const newValue = value.substring(0, start) + '  ' + value.substring(end);
+      onChange(newValue);
       
       // Set cursor position after tab
       setTimeout(() => {
@@ -49,33 +42,6 @@ const Editor: React.FC<EditorProps> = ({
           editorRef.current.selectionStart = editorRef.current.selectionEnd = start + 2;
         }
       }, 0);
-    }
-  };
-
-  const handleGenerateAI = async () => {
-    if (!aiPrompt.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a prompt to generate a diagram",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const generatedCode = await generateMermaidDiagram(aiPrompt);
-      onDiagramGenerated(generatedCode);
-      toast({
-        title: "Success",
-        description: "Diagram generated successfully!"
-      });
-    } catch (error) {
-      console.error('AI generation error:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate diagram",
-        variant: "destructive"
-      });
     }
   };
 
@@ -101,8 +67,8 @@ const Editor: React.FC<EditorProps> = ({
           <div className="h-full">
             <textarea
               ref={editorRef}
-              value={code}
-              onChange={(e) => onCodeChange(e.target.value)}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Enter your mermaid code here..."
               className="editor-container h-full resize-none font-mono animate-fade-in"
@@ -112,26 +78,14 @@ const Editor: React.FC<EditorProps> = ({
         </TabsContent>
         
         <TabsContent value="prompt" className="flex-1 mt-0 h-full">
-          <div className="h-full flex flex-col">
-            <div className="flex-1">
-              <textarea
-                value={aiPrompt}
-                onChange={(e) => onAIPromptChange(e.target.value)}
-                placeholder="Describe the diagram you want to create..."
-                className="editor-container h-full resize-none animate-fade-in"
-                spellCheck="false"
-              />
-            </div>
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-              <Button 
-                onClick={handleGenerateAI}
-                className="w-full"
-                disabled={!aiPrompt.trim()}
-              >
-                <Sparkles className="mr-2 h-4 w-4" />
-                Generate Diagram
-              </Button>
-            </div>
+          <div className="h-full">
+            <textarea
+              value={promptValue}
+              onChange={(e) => onPromptChange(e.target.value)}
+              placeholder="Describe the diagram you want to create..."
+              className="editor-container h-full resize-none animate-fade-in"
+              spellCheck="false"
+            />
           </div>
         </TabsContent>
       </Tabs>
