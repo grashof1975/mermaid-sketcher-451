@@ -17,7 +17,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 
 ### Tabelle Backend Proposte
 
-#### `diagrams`
+#### TABLE_01: `diagrams`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico del diagramma |
@@ -46,7 +46,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 
 ### Tabelle Backend Proposte
 
-#### `ai_prompts`
+#### TABLE_02: `ai_prompts`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico del prompt |
@@ -59,7 +59,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 | execution_time_ms | INTEGER | Tempo di esecuzione in millisecondi |
 | created_at | TIMESTAMP | Data di esecuzione |
 
-#### `prompt_pool`
+#### TABLE_03: `prompt_pool`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico del template |
@@ -91,7 +91,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 
 ### Tabelle Backend Proposte
 
-#### `saved_views`
+#### TABLE_04: `saved_views`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico della vista |
@@ -108,7 +108,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 | created_at | TIMESTAMP | Data di creazione |
 | updated_at | TIMESTAMP | Data ultima modifica |
 
-#### `view_history`
+#### TABLE_05: `view_history`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico della history entry |
@@ -136,7 +136,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 
 ### Tabelle Backend Proposte
 
-#### `comments`
+#### TABLE_06: `comments`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico del commento |
@@ -148,7 +148,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 | created_at | TIMESTAMP | Data di creazione |
 | updated_at | TIMESTAMP | Data ultima modifica |
 
-#### `provisional_views`
+#### TABLE_07: `provisional_views`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico della vista provvisoria |
@@ -161,7 +161,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 | pan_y | DECIMAL(10,2) | Posizione Y del pan |
 | created_at | TIMESTAMP | Data di creazione |
 
-#### `view_comment_associations`
+#### TABLE_08: `view_comment_associations`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico dell'associazione |
@@ -188,7 +188,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 
 ### Tabelle Backend Proposte
 
-#### `view_interactions`
+#### TABLE_09: `view_interactions`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico dell'interazione |
@@ -217,7 +217,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 
 ### Tabelle Backend Proposte
 
-#### `exports`
+#### TABLE_10: `exports`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico dell'export |
@@ -244,7 +244,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 
 ### Tabelle Backend Proposte
 
-#### `user_preferences`
+#### TABLE_11: `user_preferences`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico delle preferenze |
@@ -272,7 +272,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 
 ### Tabelle Backend Proposte
 
-#### `collaborators`
+#### TABLE_12: `collaborators`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico della collaborazione |
@@ -284,7 +284,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 | created_at | TIMESTAMP | Data invito |
 | updated_at | TIMESTAMP | Data ultima modifica |
 
-#### `diagram_shares`
+#### TABLE_13: `diagram_shares`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico della condivisione |
