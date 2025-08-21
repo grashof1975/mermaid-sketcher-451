@@ -214,7 +214,7 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="flex items-center gap-1">
-                              <span className="text-xs font-medium truncate max-w-28">
+                              <span className="text-xs font-medium truncate">
                                 {diagram.title}
                               </span>
                               {diagram.is_public && (
