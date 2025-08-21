@@ -8,15 +8,18 @@ interface TagsEditorProps {
   tags: string[];
   onChange: (tags: string[]) => void;
   maxTags?: number;
+  availableTags?: string[];
 }
 
 export const TagsEditor: React.FC<TagsEditorProps> = ({ 
   tags, 
   onChange, 
-  maxTags = 5 
+  maxTags = 5,
+  availableTags = []
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -44,6 +47,27 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
     } else if (e.key === 'Escape') {
       setIsEditing(false);
       setNewTag('');
+      setShowSuggestions(false);
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      // Handle arrow navigation for suggestions if needed
+    }
+  };
+
+  // Get filtered suggestions based on current input
+  const filteredSuggestions = availableTags
+    .filter(tag => 
+      tag.toLowerCase().includes(newTag.toLowerCase()) && 
+      !tags.includes(tag) &&
+      tag !== newTag.trim().toLowerCase()
+    )
+    .slice(0, 5);
+
+  const selectSuggestion = (suggestion: string) => {
+    if (!tags.includes(suggestion) && tags.length < maxTags) {
+      onChange([...tags, suggestion]);
+      setNewTag('');
+      setShowSuggestions(false);
     }
   };
 
@@ -68,20 +92,45 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
       ))}
       
       {isEditing ? (
-        <div className="flex items-center gap-1">
+        <div className="relative flex items-center gap-1">
           <Input
             ref={inputRef}
             value={newTag}
-            onChange={(e) => setNewTag(e.target.value)}
+            onChange={(e) => {
+              setNewTag(e.target.value);
+              setShowSuggestions(e.target.value.length > 0);
+            }}
             onKeyDown={handleKeyPress}
             onBlur={() => {
-              if (newTag.trim()) addTag();
-              setIsEditing(false);
+              // Delay to allow clicking on suggestions
+              setTimeout(() => {
+                if (newTag.trim()) addTag();
+                setIsEditing(false);
+                setShowSuggestions(false);
+              }, 200);
             }}
+            onFocus={() => setShowSuggestions(newTag.length > 0)}
             placeholder="Nuovo tag..."
-            className="h-6 text-xs px-2 w-20"
+            className="h-6 text-xs px-2 w-24"
             maxLength={20}
           />
+          
+          {/* Suggestions dropdown */}
+          {showSuggestions && filteredSuggestions.length > 0 && (
+            <div className="absolute top-full left-0 mt-1 w-32 bg-popover border rounded-md shadow-md z-50">
+              {filteredSuggestions.map(suggestion => (
+                <button
+                  key={suggestion}
+                  onClick={() => selectSuggestion(suggestion)}
+                  className="w-full text-left px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <Badge variant="secondary" className="text-xs">
+                    {suggestion}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         tags.length < maxTags && (

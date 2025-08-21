@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthProvider';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileText, Globe, Trash2, Plus, Tag, Save } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FileText, Globe, Trash2, Plus, Tag, Save, Filter, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { TagsEditor } from './TagsEditor';
@@ -46,6 +47,7 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
   const [editingTags, setEditingTags] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editingTitleValue, setEditingTitleValue] = useState('');
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string>('');
   const { user } = useAuth();
 
   useEffect(() => {
@@ -205,6 +207,23 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
     });
   };
 
+  // Get all unique tags from diagrams for the filter
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    diagrams.forEach(diagram => {
+      diagram.tags.forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [diagrams]);
+
+  // Filter diagrams based on selected tag
+  const filteredDiagrams = useMemo(() => {
+    if (!selectedTagFilter) return diagrams;
+    return diagrams.filter(diagram => 
+      diagram.tags.includes(selectedTagFilter)
+    );
+  }, [diagrams, selectedTagFilter]);
+
   if (!user) {
     return (
       <div className="p-4 text-center text-muted-foreground">
@@ -220,6 +239,40 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-sm">I Miei Diagrammi</h3>
         </div>
+        
+        {/* Tag Filter */}
+        {allTags.length > 0 && (
+          <div className="mb-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedTagFilter} onValueChange={setSelectedTagFilter}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Filtra per tag..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Tutti i diagrammi</SelectItem>
+                  {allTags.map(tag => (
+                    <SelectItem key={tag} value={tag}>
+                      <Badge variant="secondary" className="text-xs">
+                        {tag}
+                      </Badge>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedTagFilter && (
+                <Button
+                  onClick={() => setSelectedTagFilter('')}
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Button
             onClick={onCreateNew}
@@ -249,22 +302,29 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
               <div className="text-center text-muted-foreground text-sm p-4">
                 Caricamento...
               </div>
-            ) : diagrams.length === 0 ? (
+            ) : filteredDiagrams.length === 0 ? (
               <div className="text-center text-muted-foreground p-4">
                 <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Nessun diagramma salvato</p>
-                <Button 
-                  onClick={onCreateNew}
-                  size="sm" 
-                  variant="outline" 
-                  className="mt-2"
-                >
-                  Crea il primo diagramma
-                </Button>
+                <p className="text-sm">
+                  {selectedTagFilter 
+                    ? `Nessun diagramma con il tag "${selectedTagFilter}"`
+                    : "Nessun diagramma salvato"
+                  }
+                </p>
+                {!selectedTagFilter && (
+                  <Button 
+                    onClick={onCreateNew}
+                    size="sm" 
+                    variant="outline" 
+                    className="mt-2"
+                  >
+                    Crea il primo diagramma
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-1">
-                {diagrams.map(diagram => (
+                {filteredDiagrams.map(diagram => (
                   <div
                     key={diagram.id}
                     className={`group relative flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors hover:bg-accent/50 ${
@@ -367,6 +427,7 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                             tags={diagram.tags}
                             onChange={(tags) => updateDiagramTags(diagram.id, tags)}
                             maxTags={3}
+                            availableTags={allTags}
                           />
                         </div>
                       ) : (

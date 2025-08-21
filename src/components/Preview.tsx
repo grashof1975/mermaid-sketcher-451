@@ -92,7 +92,7 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewC
     const mouseY = e.clientY - rect.top;
 
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.1), 10);
+    const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.1), 20);
 
     // Calculate new pan to zoom towards mouse cursor
     const zoomRatio = newZoom / zoom;
