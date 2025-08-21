@@ -218,7 +218,7 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
 
   // Filter diagrams based on selected tag
   const filteredDiagrams = useMemo(() => {
-    if (!selectedTagFilter) return diagrams;
+    if (!selectedTagFilter || selectedTagFilter === 'all') return diagrams;
     return diagrams.filter(diagram => 
       diagram.tags.includes(selectedTagFilter)
     );
@@ -250,7 +250,7 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                   <SelectValue placeholder="Filtra per tag..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tutti i diagrammi</SelectItem>
+                  <SelectItem value="all">Tutti i diagrammi</SelectItem>
                   {allTags.map(tag => (
                     <SelectItem key={tag} value={tag}>
                       <Badge variant="secondary" className="text-xs">
@@ -260,9 +260,9 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                   ))}
                 </SelectContent>
               </Select>
-              {selectedTagFilter && (
+              {selectedTagFilter && selectedTagFilter !== 'all' && (
                 <Button
-                  onClick={() => setSelectedTagFilter('')}
+                  onClick={() => setSelectedTagFilter('all')}
                   size="sm"
                   variant="ghost"
                   className="h-6 w-6 p-0"
@@ -306,12 +306,12 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
               <div className="text-center text-muted-foreground p-4">
                 <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">
-                  {selectedTagFilter 
+                  {selectedTagFilter && selectedTagFilter !== 'all'
                     ? `Nessun diagramma con il tag "${selectedTagFilter}"`
                     : "Nessun diagramma salvato"
                   }
                 </p>
-                {!selectedTagFilter && (
+                {(!selectedTagFilter || selectedTagFilter === 'all') && (
                   <Button 
                     onClick={onCreateNew}
                     size="sm" 
