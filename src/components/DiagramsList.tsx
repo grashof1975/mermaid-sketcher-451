@@ -338,7 +338,7 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
         
         {/* Tag Filter */}
         {allTags.length > 0 && (
-          <div className="mb-3">
+          <div className="mb-3 space-y-2">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedTagFilter} onValueChange={setSelectedTagFilter}>
@@ -349,47 +349,9 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                   <SelectItem value="all">Tutti i diagrammi</SelectItem>
                   {allTags.map(tag => (
                     <SelectItem key={tag} value={tag}>
-                      <div className="flex items-center justify-between w-full group">
-                        <Badge variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Remove tag from current filter if it matches
-                              if (selectedTagFilter === tag) {
-                                setSelectedTagFilter('all');
-                              }
-                              const diagramsWithTag = diagrams.filter(d => d.tags.includes(tag));
-                              if (diagramsWithTag.length === 1) {
-                                updateDiagramTags(diagramsWithTag[0].id, diagramsWithTag[0].tags.filter(t => t !== tag));
-                              }
-                            }}
-                            size="sm"
-                            variant="ghost"
-                            className="h-4 w-4 p-0 hover:bg-destructive/20"
-                            title="Rimuovi da questo diagramma"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </Button>
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (selectedTagFilter === tag) {
-                                setSelectedTagFilter('all');
-                              }
-                              deleteTagFromAllDiagrams(tag);
-                            }}
-                            size="sm"
-                            variant="ghost"
-                            className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                            title="Elimina da tutti i diagrammi"
-                          >
-                            <Trash className="h-2.5 w-2.5" />
-                          </Button>
-                        </div>
-                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        {tag}
+                      </Badge>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -405,6 +367,34 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                 </Button>
               )}
             </div>
+            
+            {/* Tag Management */}
+            {allTags.length > 0 && (
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">Gestisci tag:</div>
+                <div className="flex flex-wrap gap-1">
+                  {allTags.map(tag => {
+                    const diagramsWithTag = diagrams.filter(d => d.tags.includes(tag));
+                    return (
+                      <div key={tag} className="flex items-center gap-1 group">
+                        <Badge variant="outline" className="text-xs">
+                          {tag} ({diagramsWithTag.length})
+                        </Badge>
+                        <Button
+                          onClick={() => deleteTagFromAllDiagrams(tag)}
+                          size="sm"
+                          variant="ghost"
+                          className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground"
+                          title="Elimina da tutti i diagrammi"
+                        >
+                          <Trash className="h-2.5 w-2.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
         <div className="flex items-center gap-2">
