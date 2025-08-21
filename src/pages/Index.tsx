@@ -136,13 +136,16 @@ const Index = () => {
   };
 
   const saveDiagram = async (title?: string, diagramCode?: string, description?: string) => {
-    if (!user || !diagramCode?.trim()) return;
+    if (!user) return;
+    
+    const codeToSave = diagramCode || code;
+    if (!codeToSave?.trim()) return;
 
     try {
       const diagramData = {
         user_id: user.id,
         title: title || currentDiagram?.title || 'Untitled Diagram',
-        mermaid_code: diagramCode,
+        mermaid_code: codeToSave,
         description: description || currentDiagram?.description,
         tags: currentDiagram?.tags || [],
         version: (currentDiagram?.version || 0) + 1,
@@ -164,6 +167,12 @@ const Index = () => {
         } else if (data) {
           setCurrentDiagram(data);
           setHasUnsavedChanges(false);
+          if (userPreferences.toast_notifications_enabled) {
+            toast({
+              title: "Diagramma aggiornato",
+              description: "Il diagramma è stato salvato con successo",
+            });
+          }
         }
       } else {
         // Create new
@@ -178,6 +187,12 @@ const Index = () => {
         } else if (data) {
           setCurrentDiagram(data);
           setHasUnsavedChanges(false);
+          if (userPreferences.toast_notifications_enabled) {
+            toast({
+              title: "Diagramma salvato",
+              description: "Nuovo diagramma creato con successo",
+            });
+          }
         }
       }
     } catch (error) {
@@ -492,10 +507,8 @@ const Index = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-800 animate-fade-in">
       <Header 
         onExport={handleExport}
-        onSave={() => saveDiagram()}
         toggleTheme={toggleTheme}
         isDarkMode={isDarkMode}
-        hasUnsavedChanges={hasUnsavedChanges}
       />
       
       <div className="flex-1 flex flex-col relative">
@@ -560,12 +573,14 @@ const Index = () => {
                   currentDiagram={currentDiagram}
                   onLoadDiagram={loadDiagram}
                   onCreateNew={createNewDiagram}
+                  onSave={() => saveDiagram()}
                   onDiagramsChange={setDiagrams}
                   onUpdateDiagram={(updatedDiagram) => {
                     if (currentDiagram?.id === updatedDiagram.id) {
                       setCurrentDiagram(updatedDiagram);
                     }
                   }}
+                  hasUnsavedChanges={hasUnsavedChanges}
                 />
               </TabsContent>
               

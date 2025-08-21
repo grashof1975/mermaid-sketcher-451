@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileText, Globe, Trash2, Plus, Tag } from 'lucide-react';
+import { FileText, Globe, Trash2, Plus, Tag, Save } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { TagsEditor } from './TagsEditor';
 
@@ -25,16 +25,20 @@ interface DiagramsListProps {
   currentDiagram: Diagram | null;
   onLoadDiagram: (diagram: Diagram) => void;
   onCreateNew: () => void;
+  onSave: () => void;
   onDiagramsChange: (diagrams: Diagram[]) => void;
   onUpdateDiagram?: (diagram: Diagram) => void;
+  hasUnsavedChanges?: boolean;
 }
 
 export const DiagramsList: React.FC<DiagramsListProps> = ({ 
   currentDiagram, 
   onLoadDiagram, 
   onCreateNew,
+  onSave,
   onDiagramsChange,
-  onUpdateDiagram
+  onUpdateDiagram,
+  hasUnsavedChanges = false
 }) => {
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
   const [loading, setLoading] = useState(false);
@@ -159,15 +163,27 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
   return (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-sm">I Miei Diagrammi</h3>
+        </div>
+        <div className="flex items-center gap-2">
           <Button
             onClick={onCreateNew}
             size="sm"
             variant="outline"
-            className="h-8 w-8 p-0"
+            className="flex-1"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4 mr-2" />
+            Nuovo Diagramma
+          </Button>
+          <Button 
+            variant={hasUnsavedChanges ? "default" : "outline"} 
+            size="sm" 
+            onClick={onSave}
+            className="flex-1"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {hasUnsavedChanges ? "Salva*" : "Salva"}
           </Button>
         </div>
       </div>
