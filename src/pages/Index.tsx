@@ -205,6 +205,10 @@ const Index = () => {
     }
   };
 
+  const setAllDiagrams = (diagrams: Diagram[]) => {
+    setDiagrams(diagrams);
+  };
+
   const createNewDiagram = () => {
     setCurrentDiagram(null);
     setCode(DEFAULT_DIAGRAM);
@@ -487,9 +491,11 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-800 animate-fade-in">
       <Header 
-        onExport={handleExport} 
+        onExport={handleExport}
+        onSave={() => saveDiagram()}
         toggleTheme={toggleTheme}
         isDarkMode={isDarkMode}
+        hasUnsavedChanges={hasUnsavedChanges}
       />
       
       <div className="flex-1 flex flex-col relative">
@@ -555,6 +561,11 @@ const Index = () => {
                   onLoadDiagram={loadDiagram}
                   onCreateNew={createNewDiagram}
                   onDiagramsChange={setDiagrams}
+                  onUpdateDiagram={(updatedDiagram) => {
+                    if (currentDiagram?.id === updatedDiagram.id) {
+                      setCurrentDiagram(updatedDiagram);
+                    }
+                  }}
                 />
               </TabsContent>
               

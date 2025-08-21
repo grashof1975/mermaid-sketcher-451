@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Download, Moon, Sun, User, LogOut } from "lucide-react";
+import { Download, Moon, Sun, User, LogOut, Save } from "lucide-react";
 import { useAuth } from '@/contexts/AuthProvider';
 import { AuthModal } from './AuthModal';
 
 interface HeaderProps {
   onExport: () => void;
+  onSave: () => void;
   toggleTheme: () => void;
   isDarkMode: boolean;
+  hasUnsavedChanges?: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({
   onExport,
+  onSave,
   toggleTheme,
-  isDarkMode
+  isDarkMode,
+  hasUnsavedChanges = false
 }) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const { user, signOut, loading } = useAuth();
@@ -38,6 +42,15 @@ const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center space-x-3">
             <Button variant="outline" size="sm" className="glass-button" onClick={toggleTheme}>
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+            </Button>
+            <Button 
+              variant={hasUnsavedChanges ? "default" : "outline"} 
+              size="sm" 
+              className="glass-button" 
+              onClick={onSave}
+            >
+              <Save size={16} className="mr-2" />
+              {hasUnsavedChanges ? "Salva*" : "Salva"}
             </Button>
             <Button variant="outline" size="sm" className="glass-button" onClick={onExport}>
               <Download size={16} className="mr-2" />

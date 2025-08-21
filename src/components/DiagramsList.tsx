@@ -4,8 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Globe, Trash2, Plus } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { FileText, Globe, Trash2, Plus, Tag } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { TagsEditor } from './TagsEditor';
 
 interface Diagram {
   id: string;
@@ -24,16 +26,19 @@ interface DiagramsListProps {
   onLoadDiagram: (diagram: Diagram) => void;
   onCreateNew: () => void;
   onDiagramsChange: (diagrams: Diagram[]) => void;
+  onUpdateDiagram?: (diagram: Diagram) => void;
 }
 
 export const DiagramsList: React.FC<DiagramsListProps> = ({ 
   currentDiagram, 
   onLoadDiagram, 
   onCreateNew,
-  onDiagramsChange 
+  onDiagramsChange,
+  onUpdateDiagram
 }) => {
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editingTags, setEditingTags] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -101,6 +106,37 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
     }
   };
 
+  const updateDiagramTags = async (diagramId: string, tags: string[]) => {
+    try {
+      const { data, error } = await supabase
+        .from('diagrams')
+        .update({ tags })
+        .eq('id', diagramId)
+        .eq('user_id', user?.id)
+        .select()
+        .single();
+      
+      if (error) {
+        toast({
+          title: "Errore",
+          description: "Impossibile aggiornare i tag",
+          variant: "destructive",
+        });
+      } else if (data) {
+        setDiagrams(prev => prev.map(d => d.id === diagramId ? data : d));
+        onDiagramsChange(diagrams.map(d => d.id === diagramId ? data : d));
+        if (onUpdateDiagram) onUpdateDiagram(data);
+        toast({
+          title: "Successo",
+          description: "Tag aggiornati",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating tags:', error);
+    }
+    setEditingTags(null);
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('it-IT', {
       day: '2-digit',
@@ -137,91 +173,148 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
       </div>
       
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-2">
-          {loading ? (
-            <div className="text-center text-muted-foreground text-sm">
-              Caricamento...
-            </div>
-          ) : diagrams.length === 0 ? (
-            <div className="text-center text-muted-foreground">
-              <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Nessun diagramma salvato</p>
-              <Button 
-                onClick={onCreateNew}
-                size="sm" 
-                variant="outline" 
-                className="mt-2"
-              >
-                Crea il primo diagramma
-              </Button>
-            </div>
-          ) : (
-            diagrams.map(diagram => (
-              <div
-                key={diagram.id}
-                onClick={() => onLoadDiagram(diagram)}
-                className={`group p-3 rounded-lg border cursor-pointer transition-colors hover:bg-accent/50 ${
-                  currentDiagram?.id === diagram.id 
-                    ? 'bg-accent border-primary' 
-                    : 'bg-card hover:border-accent-foreground/20'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <h4 className="font-medium text-sm truncate">
-                        {diagram.title}
-                      </h4>
-                      {diagram.is_public && (
-                        <Globe className="h-3 w-3 text-blue-500 flex-shrink-0" />
-                      )}
-                    </div>
-                    
-                    {diagram.description && (
-                      <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                        {diagram.description}
-                      </p>
-                    )}
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        {diagram.tags.length > 0 && (
-                          <div className="flex gap-1">
-                            {diagram.tags.slice(0, 2).map(tag => (
-                              <Badge key={tag} variant="secondary" className="text-xs px-1 py-0">
-                                {tag}
-                              </Badge>
-                            ))}
-                            {diagram.tags.length > 2 && (
-                              <Badge variant="outline" className="text-xs px-1 py-0">
-                                +{diagram.tags.length - 2}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
+        <TooltipProvider>
+          <div className="p-2">
+            {loading ? (
+              <div className="text-center text-muted-foreground text-sm p-4">
+                Caricamento...
+              </div>
+            ) : diagrams.length === 0 ? (
+              <div className="text-center text-muted-foreground p-4">
+                <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Nessun diagramma salvato</p>
+                <Button 
+                  onClick={onCreateNew}
+                  size="sm" 
+                  variant="outline" 
+                  className="mt-2"
+                >
+                  Crea il primo diagramma
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {diagrams.map(diagram => (
+                  <div
+                    key={diagram.id}
+                    className={`group relative flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors hover:bg-accent/50 ${
+                      currentDiagram?.id === diagram.id 
+                        ? 'bg-accent border border-primary/20' 
+                        : 'hover:bg-accent/30'
+                    }`}
+                  >
+                    {/* Main content */}
+                    <div 
+                      onClick={() => onLoadDiagram(diagram)}
+                      className="flex-1 min-w-0 flex items-center gap-2"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      
+                      <div className="flex-1 min-w-0">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs font-medium truncate max-w-28">
+                                {diagram.title}
+                              </span>
+                              {diagram.is_public && (
+                                <Globe className="h-2.5 w-2.5 text-blue-500 flex-shrink-0" />
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            <div className="space-y-1">
+                              <div className="font-medium">{diagram.title}</div>
+                              {diagram.description && (
+                                <div className="text-xs opacity-80">{diagram.description}</div>
+                              )}
+                              <div className="text-xs opacity-60">
+                                {formatDate(diagram.updated_at)}
+                                {diagram.version > 1 && ` • v${diagram.version}`}
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                       
-                      <Button
-                        onClick={(e) => deleteDiagram(diagram.id, e)}
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(diagram.updated_at).toLocaleDateString('it-IT', {
+                          day: '2-digit',
+                          month: '2-digit'
+                        })}
+                      </div>
                     </div>
-                    
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {formatDate(diagram.updated_at)}
-                      {diagram.version > 1 && ` • v${diagram.version}`}
+
+                    {/* Tags section */}
+                    <div className="flex items-center gap-1 min-w-0">
+                      {editingTags === diagram.id ? (
+                        <div onClick={(e) => e.stopPropagation()} className="min-w-32">
+                          <TagsEditor
+                            tags={diagram.tags}
+                            onChange={(tags) => updateDiagramTags(diagram.id, tags)}
+                            maxTags={3}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          {diagram.tags.length > 0 ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex gap-0.5">
+                                  {diagram.tags.slice(0, 1).map(tag => (
+                                    <Badge key={tag} variant="secondary" className="text-xs px-1 py-0 h-4">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                  {diagram.tags.length > 1 && (
+                                    <Badge variant="outline" className="text-xs px-1 py-0 h-4">
+                                      +{diagram.tags.length - 1}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <div className="flex flex-wrap gap-1 max-w-xs">
+                                  {diagram.tags.map(tag => (
+                                    <Badge key={tag} variant="secondary" className="text-xs">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : null}
+                          
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingTags(diagram.id);
+                            }}
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                          >
+                            <Tag className="h-3 w-3" />
+                          </Button>
+                        </>
+                      )}
                     </div>
+
+                    {/* Action buttons */}
+                    <Button
+                      onClick={(e) => deleteDiagram(diagram.id, e)}
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground"
+                    >
+                      <Trash2 className="h-2.5 w-2.5" />
+                    </Button>
                   </div>
-                </div>
+                ))}
               </div>
-            ))
-          )}
-        </div>
+            )}
+          </div>
+        </TooltipProvider>
       </ScrollArea>
     </div>
   );
