@@ -1,0 +1,238 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Error Boundary Styles */
+@layer components {
+  .error-boundary {
+    @apply min-h-screen flex items-center justify-center bg-red-50;
+  }
+
+  .error-content {
+    @apply max-w-md mx-auto text-center p-6 bg-white rounded-lg shadow-lg;
+  }
+
+  .error-icon {
+    @apply w-16 h-16 mx-auto text-red-500 mb-4;
+  }
+
+  .error-title {
+    @apply text-xl font-semibold text-gray-900 mb-2;
+  }
+
+  .error-description {
+    @apply text-gray-600 mb-4;
+  }
+
+  .error-actions {
+    @apply flex gap-3 justify-center;
+  }
+}
+
+/* Safe loading states */
+@layer components {
+  .loading-spinner {
+    @apply animate-spin rounded-full border-2 border-transparent border-t-current;
+  }
+
+  .loading-dots {
+    @apply flex space-x-1;
+  }
+
+  .loading-dots > div {
+    @apply w-2 h-2 bg-current rounded-full animate-pulse;
+  }
+
+  .loading-dots > div:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .loading-dots > div:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+/* Mermaid diagram styles */
+@layer components {
+  .mermaid-container {
+    @apply w-full h-full relative;
+  }
+
+  .mermaid-content svg {
+    @apply max-w-full h-auto;
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* Override Mermaid default styles for better integration */
+  .mermaid-content .node rect,
+  .mermaid-content .node circle,
+  .mermaid-content .node ellipse,
+  .mermaid-content .node polygon {
+    @apply stroke-gray-300 fill-white;
+    stroke-width: 1.5px;
+  }
+
+  .mermaid-content .node .label {
+    @apply fill-gray-800;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 14px;
+  }
+
+  .mermaid-content .edgePath path {
+    @apply stroke-gray-400;
+    stroke-width: 1.5px;
+  }
+
+  .mermaid-content .edgeLabel {
+    @apply bg-white;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 12px;
+  }
+}
+
+/* Dark mode support for mermaid */
+@layer components {
+  .dark .mermaid-content .node rect,
+  .dark .mermaid-content .node circle,
+  .dark .mermaid-content .node ellipse,
+  .dark .mermaid-content .node polygon {
+    @apply stroke-gray-600 fill-gray-800;
+  }
+
+  .dark .mermaid-content .node .label {
+    @apply fill-gray-200;
+  }
+
+  .dark .mermaid-content .edgePath path {
+    @apply stroke-gray-500;
+  }
+
+  .dark .mermaid-content .edgeLabel {
+    @apply bg-gray-800 text-gray-200;
+  }
+}
+
+/* Glassmorphism utility classes */
+@layer utilities {
+  .glass {
+    @apply bg-white/10 backdrop-blur-lg border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-black/10 backdrop-blur-lg border border-black/20;
+  }
+}
+
+/* Smooth transitions for better UX */
+@layer base {
+  * {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+}
+
+/* Hide scrollbar but keep functionality */
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Focus styles for accessibility */
+@layer base {
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .mermaid-content svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}
