@@ -30,8 +30,12 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
 
   const addTag = () => {
     const trimmedTag = newTag.trim().toLowerCase();
-    if (trimmedTag && !tags.includes(trimmedTag) && tags.length < maxTags) {
-      onChange([...tags, trimmedTag]);
+    // Check if there's an exact match in available tags first
+    const exactMatch = availableTags.find(tag => tag.toLowerCase() === trimmedTag);
+    const tagToAdd = exactMatch || trimmedTag;
+    
+    if (tagToAdd && !tags.includes(tagToAdd) && tags.length < maxTags) {
+      onChange([...tags, tagToAdd]);
       setNewTag('');
     }
   };
@@ -68,6 +72,7 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
       onChange([...tags, suggestion]);
       setNewTag('');
       setShowSuggestions(false);
+      setIsEditing(false);
     }
   };
 

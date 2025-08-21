@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Globe, Trash2, Plus, Tag, Save, Filter, X } from 'lucide-react';
+import { FileText, Globe, Trash2, Plus, Tag, Save, Filter, X, Eye, MessageCircle, Trash } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { TagsEditor } from './TagsEditor';
@@ -21,6 +21,22 @@ interface Diagram {
   tags: string[];
   created_at: string;
   updated_at: string;
+}
+
+interface SavedView {
+  id: string;
+  name: string;
+  diagram_id: string;
+  zoom_level: number;
+  pan_x: number;
+  pan_y: number;
+}
+
+interface Comment {
+  id: string;
+  text: string;
+  diagram_id: string;
+  linked_view_id?: string;
 }
 
 interface DiagramsListProps {
@@ -48,6 +64,8 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('');
+  const [diagramViews, setDiagramViews] = useState<Record<string, SavedView[]>>({});
+  const [diagramComments, setDiagramComments] = useState<Record<string, Comment[]>>({});
   const { user } = useAuth();
 
   useEffect(() => {
@@ -79,11 +97,57 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
       } else {
         setDiagrams(data || []);
         onDiagramsChange(data || []);
+        await loadViewsAndComments(data || []);
       }
     } catch (error) {
       console.error('Error loading diagrams:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadViewsAndComments = async (diagrams: Diagram[]) => {
+    if (!user || diagrams.length === 0) return;
+
+    try {
+      const diagramIds = diagrams.map(d => d.id);
+      
+      // Load saved views
+      const { data: views, error: viewsError } = await supabase
+        .from('saved_views')
+        .select('*')
+        .in('diagram_id', diagramIds)
+        .eq('user_id', user.id);
+
+      if (viewsError) {
+        console.error('Error loading views:', viewsError);
+      } else {
+        const viewsByDiagram = (views || []).reduce((acc, view) => {
+          if (!acc[view.diagram_id]) acc[view.diagram_id] = [];
+          acc[view.diagram_id].push(view);
+          return acc;
+        }, {} as Record<string, SavedView[]>);
+        setDiagramViews(viewsByDiagram);
+      }
+
+      // Load comments
+      const { data: comments, error: commentsError } = await supabase
+        .from('comments')
+        .select('*')
+        .in('diagram_id', diagramIds);
+
+      if (commentsError) {
+        console.error('Error loading comments:', commentsError);
+      } else {
+        const commentsByDiagram = (comments || []).reduce((acc, comment) => {
+          if (!acc[comment.diagram_id]) acc[comment.diagram_id] = [];
+          acc[comment.diagram_id].push(comment);
+          return acc;
+        }, {} as Record<string, Comment[]>);
+        setDiagramComments(commentsByDiagram);
+      }
+    } catch (error) {
+      console.error('Error loading views and comments:', error);
     }
   };
 
@@ -144,6 +208,38 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
       console.error('Error updating tags:', error);
     }
     setEditingTags(null);
+  };
+
+  const deleteTagFromAllDiagrams = async (tagToDelete: string) => {
+    if (!user) return;
+    
+    try {
+      // Get all diagrams with this tag
+      const diagramsWithTag = diagrams.filter(d => d.tags.includes(tagToDelete));
+      
+      for (const diagram of diagramsWithTag) {
+        const updatedTags = diagram.tags.filter(tag => tag !== tagToDelete);
+        await supabase
+          .from('diagrams')
+          .update({ tags: updatedTags })
+          .eq('id', diagram.id)
+          .eq('user_id', user.id);
+      }
+      
+      toast({
+        title: "Successo",
+        description: `Tag "${tagToDelete}" eliminato da tutti i diagrammi`,
+      });
+      
+      await loadDiagrams();
+    } catch (error) {
+      console.error('Error deleting tag from all diagrams:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile eliminare il tag",
+        variant: "destructive",
+      });
+    }
   };
 
   const updateDiagramTitle = async (diagramId: string, newTitle: string) => {
@@ -253,9 +349,47 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                   <SelectItem value="all">Tutti i diagrammi</SelectItem>
                   {allTags.map(tag => (
                     <SelectItem key={tag} value={tag}>
-                      <Badge variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
+                      <div className="flex items-center justify-between w-full group">
+                        <Badge variant="secondary" className="text-xs">
+                          {tag}
+                        </Badge>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Remove tag from current filter if it matches
+                              if (selectedTagFilter === tag) {
+                                setSelectedTagFilter('all');
+                              }
+                              const diagramsWithTag = diagrams.filter(d => d.tags.includes(tag));
+                              if (diagramsWithTag.length === 1) {
+                                updateDiagramTags(diagramsWithTag[0].id, diagramsWithTag[0].tags.filter(t => t !== tag));
+                              }
+                            }}
+                            size="sm"
+                            variant="ghost"
+                            className="h-4 w-4 p-0 hover:bg-destructive/20"
+                            title="Rimuovi da questo diagramma"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </Button>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (selectedTagFilter === tag) {
+                                setSelectedTagFilter('all');
+                              }
+                              deleteTagFromAllDiagrams(tag);
+                            }}
+                            size="sm"
+                            variant="ghost"
+                            className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                            title="Elimina da tutti i diagrammi"
+                          >
+                            <Trash className="h-2.5 w-2.5" />
+                          </Button>
+                        </div>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -411,11 +545,72 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                         </Tooltip>
                       </div>
                       
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(diagram.updated_at).toLocaleDateString('it-IT', {
-                          day: '2-digit',
-                          month: '2-digit'
-                        })}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {/* Views indicator */}
+                        {diagramViews[diagram.id] && diagramViews[diagram.id].length > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1">
+                                <Eye className="h-3 w-3" />
+                                <span>{diagramViews[diagram.id].length}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <div className="space-y-1">
+                                <div className="font-medium">Viste salvate:</div>
+                                {diagramViews[diagram.id].slice(0, 5).map(view => {
+                                  const viewComments = diagramComments[diagram.id]?.filter(c => c.linked_view_id === view.id) || [];
+                                  return (
+                                    <div key={view.id} className="flex items-center justify-between gap-2">
+                                      <span className="text-xs">{view.name}</span>
+                                      {viewComments.length > 0 && (
+                                        <div className="flex items-center gap-1">
+                                          <MessageCircle className="h-3 w-3" />
+                                          <span className="text-xs">{viewComments.length}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                                {diagramViews[diagram.id].length > 5 && (
+                                  <div className="text-xs opacity-60">...e {diagramViews[diagram.id].length - 5} altre</div>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        
+                        {/* Comments indicator */}
+                        {diagramComments[diagram.id] && diagramComments[diagram.id].length > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1">
+                                <MessageCircle className="h-3 w-3" />
+                                <span>{diagramComments[diagram.id].length}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <div className="space-y-1">
+                                <div className="font-medium">Commenti:</div>
+                                {diagramComments[diagram.id].slice(0, 3).map(comment => (
+                                  <div key={comment.id} className="text-xs p-1 bg-accent/50 rounded">
+                                    {comment.text.length > 50 ? `${comment.text.substring(0, 50)}...` : comment.text}
+                                  </div>
+                                ))}
+                                {diagramComments[diagram.id].length > 3 && (
+                                  <div className="text-xs opacity-60">...e {diagramComments[diagram.id].length - 3} altri</div>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        
+                        <span>
+                          {new Date(diagram.updated_at).toLocaleDateString('it-IT', {
+                            day: '2-digit',
+                            month: '2-digit'
+                          })}
+                        </span>
                       </div>
                     </div>
 
