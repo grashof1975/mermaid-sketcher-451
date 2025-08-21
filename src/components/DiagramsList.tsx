@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { FileText, Globe, Trash2, Plus, Tag, Save } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { TagsEditor } from './TagsEditor';
 
@@ -43,6 +44,8 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingTags, setEditingTags] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
   const { user } = useAuth();
 
   useEffect(() => {
@@ -141,6 +144,57 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
     setEditingTags(null);
   };
 
+  const updateDiagramTitle = async (diagramId: string, newTitle: string) => {
+    if (!newTitle.trim()) {
+      setEditingTitle(null);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('diagrams')
+        .update({ title: newTitle.trim() })
+        .eq('id', diagramId)
+        .eq('user_id', user?.id)
+        .select()
+        .single();
+      
+      if (error) {
+        toast({
+          title: "Errore",
+          description: "Impossibile aggiornare il titolo",
+          variant: "destructive",
+        });
+      } else if (data) {
+        setDiagrams(prev => prev.map(d => d.id === diagramId ? data : d));
+        onDiagramsChange(diagrams.map(d => d.id === diagramId ? data : d));
+        if (onUpdateDiagram) onUpdateDiagram(data);
+        toast({
+          title: "Successo",
+          description: "Titolo aggiornato",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating title:', error);
+    }
+    setEditingTitle(null);
+  };
+
+  const handleTitleClick = (e: React.MouseEvent, diagram: Diagram) => {
+    e.stopPropagation();
+    setEditingTitle(diagram.id);
+    setEditingTitleValue(diagram.title);
+  };
+
+  const handleTitleKeyPress = (e: React.KeyboardEvent, diagramId: string) => {
+    if (e.key === 'Enter') {
+      updateDiagramTitle(diagramId, editingTitleValue);
+    } else if (e.key === 'Escape') {
+      setEditingTitle(null);
+      setEditingTitleValue('');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('it-IT', {
       day: '2-digit',
@@ -230,9 +284,25 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium truncate">
-                                {diagram.title}
-                              </span>
+                              {editingTitle === diagram.id ? (
+                                <Input
+                                  value={editingTitleValue}
+                                  onChange={(e) => setEditingTitleValue(e.target.value)}
+                                  onKeyDown={(e) => handleTitleKeyPress(e, diagram.id)}
+                                  onBlur={() => updateDiagramTitle(diagram.id, editingTitleValue)}
+                                  className="h-5 text-xs font-medium px-1 py-0 border-none bg-transparent focus:bg-background focus:border-border"
+                                  autoFocus
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              ) : (
+                                <span 
+                                  className="text-xs font-medium truncate cursor-pointer hover:text-primary transition-colors"
+                                  onClick={(e) => handleTitleClick(e, diagram)}
+                                  title="Clicca per modificare il titolo"
+                                >
+                                  {diagram.title}
+                                </span>
+                              )}
                               {diagram.is_public && (
                                 <Globe className="h-2.5 w-2.5 text-blue-500 flex-shrink-0" />
                               )}
