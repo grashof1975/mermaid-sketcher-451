@@ -229,12 +229,40 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                       <div className="flex-1 min-w-0">
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-2">
                               <span className="text-xs font-medium truncate">
                                 {diagram.title}
                               </span>
                               {diagram.is_public && (
                                 <Globe className="h-2.5 w-2.5 text-blue-500 flex-shrink-0" />
+                              )}
+                              {/* Tags sempre visibili */}
+                              {diagram.tags.length > 0 && (
+                                <div className="flex gap-1">
+                                  {diagram.tags.slice(0, 2).map(tag => (
+                                    <Badge key={tag} variant="secondary" className="text-xs px-1 py-0 h-4">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                  {diagram.tags.length > 2 && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Badge variant="outline" className="text-xs px-1 py-0 h-4">
+                                          +{diagram.tags.length - 2}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top">
+                                        <div className="flex flex-wrap gap-1 max-w-xs">
+                                          {diagram.tags.slice(2).map(tag => (
+                                            <Badge key={tag} variant="secondary" className="text-xs">
+                                              {tag}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </TooltipTrigger>
@@ -261,7 +289,7 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                       </div>
                     </div>
 
-                    {/* Tags section */}
+                    {/* Tags editor section */}
                     <div className="flex items-center gap-1 min-w-0">
                       {editingTags === diagram.id ? (
                         <div onClick={(e) => e.stopPropagation()} className="min-w-32">
@@ -272,47 +300,17 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                           />
                         </div>
                       ) : (
-                        <>
-                          {diagram.tags.length > 0 ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex gap-0.5">
-                                  {diagram.tags.slice(0, 1).map(tag => (
-                                    <Badge key={tag} variant="secondary" className="text-xs px-1 py-0 h-4">
-                                      {tag}
-                                    </Badge>
-                                  ))}
-                                  {diagram.tags.length > 1 && (
-                                    <Badge variant="outline" className="text-xs px-1 py-0 h-4">
-                                      +{diagram.tags.length - 1}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">
-                                <div className="flex flex-wrap gap-1 max-w-xs">
-                                  {diagram.tags.map(tag => (
-                                    <Badge key={tag} variant="secondary" className="text-xs">
-                                      {tag}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : null}
-                          
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingTags(diagram.id);
-                            }}
-                            size="sm"
-                            variant="ghost"
-                            className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
-                          >
-                            <Tag className="h-3 w-3" />
-                          </Button>
-                        </>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTags(diagram.id);
+                          }}
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                        >
+                          <Tag className="h-3 w-3" />
+                        </Button>
                       )}
                     </div>
 
