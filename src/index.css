@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,47 +6,82 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 220 20% 10%;
+
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 20% 10%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --popover-foreground: 220 20% 10%;
+
+    --primary: 220 60% 50%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
+
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 220 20% 10%;
+
+    --muted: 210 20% 96%;
+    --muted-foreground: 220 10% 40%;
+
+    --accent: 220 30% 95%;
+    --accent-foreground: 220 60% 50%;
+
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+
+    --border: 220 20% 90%;
+    --input: 220 20% 90%;
+    --ring: 220 60% 50%;
+
     --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
+    --background: 220 20% 10%;
+    --foreground: 210 20% 98%;
+
+    --card: 220 20% 12%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 220 20% 10%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 220 60% 60%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 215 25% 18%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 215 25% 18%;
+    --muted-foreground: 210 20% 70%;
+
+    --accent: 220 25% 20%;
+    --accent-foreground: 220 60% 60%;
+
+    --destructive: 0 62.8% 40.6%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 215 25% 20%;
+    --input: 215 25% 20%;
+    --ring: 220 60% 60%;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -53,186 +89,76 @@
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply bg-background text-foreground;
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    overflow-x: hidden;
-  }
-
-  #root {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
-/* Error Boundary Styles */
+/* Font imports */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* Custom styles */
 @layer components {
-  .error-boundary {
-    @apply min-h-screen flex items-center justify-center bg-red-50;
-  }
-
-  .error-content {
-    @apply max-w-md mx-auto text-center p-6 bg-white rounded-lg shadow-lg;
-  }
-
-  .error-icon {
-    @apply w-16 h-16 mx-auto text-red-500 mb-4;
-  }
-
-  .error-title {
-    @apply text-xl font-semibold text-gray-900 mb-2;
-  }
-
-  .error-description {
-    @apply text-gray-600 mb-4;
-  }
-
-  .error-actions {
-    @apply flex gap-3 justify-center;
-  }
-}
-
-/* Safe loading states */
-@layer components {
-  .loading-spinner {
-    @apply animate-spin rounded-full border-2 border-transparent border-t-current;
-  }
-
-  .loading-dots {
-    @apply flex space-x-1;
-  }
-
-  .loading-dots > div {
-    @apply w-2 h-2 bg-current rounded-full animate-pulse;
-  }
-
-  .loading-dots > div:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-
-  .loading-dots > div:nth-child(3) {
-    animation-delay: 0.4s;
-  }
-}
-
-/* Mermaid diagram styles */
-@layer components {
-  .mermaid-container {
-    @apply w-full h-full relative;
-  }
-
-  .mermaid-content svg {
-    @apply max-w-full h-auto;
-    display: block;
-    margin: 0 auto;
-  }
-
-  /* Override Mermaid default styles for better integration */
-  .mermaid-content .node rect,
-  .mermaid-content .node circle,
-  .mermaid-content .node ellipse,
-  .mermaid-content .node polygon {
-    @apply stroke-gray-300 fill-white;
-    stroke-width: 1.5px;
-  }
-
-  .mermaid-content .node .label {
-    @apply fill-gray-800;
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    font-size: 14px;
-  }
-
-  .mermaid-content .edgePath path {
-    @apply stroke-gray-400;
-    stroke-width: 1.5px;
-  }
-
-  .mermaid-content .edgeLabel {
-    @apply bg-white;
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    font-size: 12px;
-  }
-}
-
-/* Dark mode support for mermaid */
-@layer components {
-  .dark .mermaid-content .node rect,
-  .dark .mermaid-content .node circle,
-  .dark .mermaid-content .node ellipse,
-  .dark .mermaid-content .node polygon {
-    @apply stroke-gray-600 fill-gray-800;
-  }
-
-  .dark .mermaid-content .node .label {
-    @apply fill-gray-200;
-  }
-
-  .dark .mermaid-content .edgePath path {
-    @apply stroke-gray-500;
-  }
-
-  .dark .mermaid-content .edgeLabel {
-    @apply bg-gray-800 text-gray-200;
-  }
-}
-
-/* Glassmorphism utility classes */
-@layer utilities {
-  .glass {
-    @apply bg-white/10 backdrop-blur-lg border border-white/20;
-  }
-
-  .glass-dark {
-    @apply bg-black/10 backdrop-blur-lg border border-black/20;
-  }
-}
-
-/* Smooth transitions for better UX */
-@layer base {
-  * {
-    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 150ms;
-  }
-}
-
-/* Hide scrollbar but keep functionality */
-@layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  .glass-panel {
+    @apply bg-white/80 dark:bg-black/50 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 rounded-lg shadow-sm;
   }
   
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-/* Focus styles for accessibility */
-@layer base {
-  *:focus-visible {
-    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
-  }
-}
-
-/* Print styles */
-@media print {
-  .no-print {
-    display: none !important;
+  .glass-button {
+    @apply bg-white/80 dark:bg-white/10 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 
+    rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:bg-white/90 dark:hover:bg-white/20;
   }
   
-  .mermaid-content svg {
-    max-width: 100% !important;
-    height: auto !important;
+  .editor-container {
+    @apply h-full w-full overflow-hidden font-mono text-sm p-4 bg-slate-50/90 dark:bg-slate-900/90 
+    border border-slate-200/80 dark:border-slate-800/80 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary;
   }
+  
+  .diagram-container {
+    @apply p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-lg shadow-sm;
+  }
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Custom transitions */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 400ms, transform 400ms;
+}
+
+.page-transition-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 400ms, transform 400ms;
 }
