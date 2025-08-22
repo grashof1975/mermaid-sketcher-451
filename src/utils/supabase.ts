@@ -174,17 +174,18 @@ export const db = {
     },
 
     async create(comment: InsertTables<'comments'>) {
+      // First try with basic select to avoid JOIN issues
       const { data, error } = await supabase
         .from('comments')
         .insert(comment)
-        .select(`
-          *,
-          profiles:user_id(username, avatar_url),
-          saved_views:linked_view_id(name)
-        `)
+        .select('*')
         .single()
       
-      if (error) throw error
+      if (error) {
+        console.error('Supabase comment creation error:', error);
+        console.error('Comment data attempted:', JSON.stringify(comment, null, 2));
+        throw error;
+      }
       return data
     },
 

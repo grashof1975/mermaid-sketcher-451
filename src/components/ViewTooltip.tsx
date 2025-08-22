@@ -71,19 +71,30 @@ const ViewTooltip: React.FC<ViewTooltipProps> = ({
           {viewComments.length > 0 && (
             <>
               <Separator />
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-primary" />
-                  <span className="font-medium text-sm">Commenti ({viewComments.length})</span>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Commenti</span>
+                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    {viewComments.length}
+                  </Badge>
                 </div>
                 
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {viewComments.map(comment => (
-                    <div key={comment.id} className="p-2 bg-muted/50 rounded text-xs">
-                      <p className="line-clamp-2">{comment.text}</p>
-                      <p className="text-muted-foreground mt-1">
-                        {new Date(comment.timestamp).toLocaleString()}
-                      </p>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {viewComments.map((comment, index) => (
+                    <div key={comment.id} className="p-3 bg-gradient-to-r from-muted/30 to-muted/60 rounded-md border-l-2 border-primary/20">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-shrink-0 w-1.5 h-1.5 bg-primary rounded-full mt-1.5"></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs leading-relaxed text-foreground/90 line-clamp-3">{comment.text}</p>
+                          <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                            <span>💬</span>
+                            {new Date(comment.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -137,9 +148,14 @@ const ViewTooltip: React.FC<ViewTooltipProps> = ({
 
           {/* Messaggio se non ci sono commenti */}
           {viewComments.length === 0 && (
-            <div className="text-xs text-muted-foreground text-center py-2">
-              Nessun commento per questa vista
-            </div>
+            <>
+              <Separator />
+              <div className="text-center py-3">
+                <MessageSquare className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">Nessun commento per questa vista</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">Seleziona un nodo per aggiungerne uno!</p>
+              </div>
+            </>
           )}
         </div>
       </PopoverContent>

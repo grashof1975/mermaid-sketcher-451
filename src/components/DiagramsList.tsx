@@ -457,131 +457,182 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                         : 'hover:bg-accent/30'
                     }`}
                   >
-                    {/* Main content */}
+                    {/* Main content - Full width layout */}
                     <div 
                       onClick={() => onLoadDiagram(diagram)}
-                      className="flex-1 min-w-0 flex items-center gap-2"
+                      className="flex-1 min-w-0 flex items-center justify-between gap-3"
                     >
-                      <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      
-                      <div className="flex-1 min-w-0">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-2">
-                              {editingTitle === diagram.id ? (
-                                <Input
-                                  value={editingTitleValue}
-                                  onChange={(e) => setEditingTitleValue(e.target.value)}
-                                  onKeyDown={(e) => handleTitleKeyPress(e, diagram.id)}
-                                  onBlur={() => updateDiagramTitle(diagram.id, editingTitleValue)}
-                                  className="h-5 text-xs font-medium px-1 py-0 border-none bg-transparent focus:bg-background focus:border-border"
-                                  autoFocus
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              ) : (
-                                <span 
-                                  className="text-xs font-medium truncate cursor-pointer hover:text-primary transition-colors"
-                                  onClick={(e) => handleTitleClick(e, diagram)}
-                                  title="Clicca per modificare il titolo"
-                                >
-                                  {diagram.title}
-                                </span>
-                              )}
-                              {diagram.is_public && (
-                                <Globe className="h-2.5 w-2.5 text-blue-500 flex-shrink-0" />
-                              )}
-                              {/* Tags sempre visibili */}
-                              {diagram.tags.length > 0 && (
-                                <div className="flex gap-1">
-                                  {diagram.tags.slice(0, 2).map(tag => (
-                                    <Badge key={tag} variant="secondary" className="text-xs px-1 py-0 h-4">
-                                      {tag}
-                                    </Badge>
-                                  ))}
-                                  {diagram.tags.length > 2 && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Badge variant="outline" className="text-xs px-1 py-0 h-4">
-                                          +{diagram.tags.length - 2}
-                                        </Badge>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top">
-                                        <div className="flex flex-wrap gap-1 max-w-xs">
-                                          {diagram.tags.slice(2).map(tag => (
-                                            <Badge key={tag} variant="secondary" className="text-xs">
-                                              {tag}
-                                            </Badge>
-                                          ))}
-                                        </div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs">
-                            <div className="space-y-1">
-                              <div className="font-medium">{diagram.title}</div>
-                              {diagram.description && (
-                                <div className="text-xs opacity-80">{diagram.description}</div>
-                              )}
-                              <div className="text-xs opacity-60">
-                                {formatDate(diagram.updated_at)}
-                                {diagram.version > 1 && ` • v${diagram.version}`}
-                              </div>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {/* Views indicator */}
-                        {diagramViews[diagram.id] && diagramViews[diagram.id].length > 0 && (
+                      {/* Left section: Icon + Title */}
+                      <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        
+                        <div className="min-w-0">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div className="flex items-center gap-1">
-                                <Eye className="h-3 w-3" />
-                                <span>{diagramViews[diagram.id].length}</span>
+                                {editingTitle === diagram.id ? (
+                                  <Input
+                                    value={editingTitleValue}
+                                    onChange={(e) => setEditingTitleValue(e.target.value)}
+                                    onKeyDown={(e) => handleTitleKeyPress(e, diagram.id)}
+                                    onBlur={() => updateDiagramTitle(diagram.id, editingTitleValue)}
+                                    className="h-5 text-xs font-medium px-1 py-0 border-none bg-transparent focus:bg-background focus:border-border"
+                                    autoFocus
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  <span 
+                                    className="text-xs font-medium cursor-pointer hover:text-primary transition-colors"
+                                    onClick={(e) => handleTitleClick(e, diagram)}
+                                    title="Clicca per modificare il titolo"
+                                    style={{ 
+                                      display: 'block',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      maxWidth: '150px'
+                                    }}
+                                  >
+                                    {diagram.title}
+                                  </span>
+                                )}
+                                {diagram.is_public && (
+                                  <Globe className="h-2.5 w-2.5 text-blue-500 flex-shrink-0" />
+                                )}
                               </div>
                             </TooltipTrigger>
-                            <TooltipContent side="top">
+                            <TooltipContent side="top" className="max-w-xs">
                               <div className="space-y-1">
-                                <div className="font-medium">Viste salvate:</div>
-                                {diagramViews[diagram.id].slice(0, 5).map(view => {
-                                  const viewComments = diagramComments[diagram.id]?.filter(c => c.linked_view_id === view.id) || [];
-                                  return (
-                                    <div key={view.id} className="flex items-center justify-between gap-2">
-                                      <span className="text-xs">{view.name}</span>
-                                      {viewComments.length > 0 && (
-                                        <div className="flex items-center gap-1">
-                                          <MessageCircle className="h-3 w-3" />
-                                          <span className="text-xs">{viewComments.length}</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                                {diagramViews[diagram.id].length > 5 && (
-                                  <div className="text-xs opacity-60">...e {diagramViews[diagram.id].length - 5} altre</div>
+                                <div className="font-medium">{diagram.title}</div>
+                                {diagram.description && (
+                                  <div className="text-xs opacity-80">{diagram.description}</div>
                                 )}
+                                <div className="text-xs opacity-60">
+                                  {formatDate(diagram.updated_at)}
+                                  {diagram.version > 1 && ` • v${diagram.version}`}
+                                </div>
                               </div>
                             </TooltipContent>
                           </Tooltip>
+                        </div>
+                      </div>
+                      
+                      {/* Center section: Tags */}
+                      <div className="flex-1 min-w-0 flex items-center gap-1 justify-center">
+                        {diagram.tags.length > 0 ? (
+                          <div className="flex gap-1 flex-wrap">
+                            {diagram.tags.slice(0, 3).map(tag => (
+                              <Badge key={tag} variant="secondary" className="text-xs px-1.5 py-0 h-4">
+                                {tag}
+                              </Badge>
+                            ))}
+                            {diagram.tags.length > 3 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="text-xs px-1 py-0 h-4 cursor-help">
+                                    +{diagram.tags.length - 3}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <div className="flex flex-wrap gap-1 max-w-xs">
+                                    {diagram.tags.slice(3).map(tag => (
+                                      <Badge key={tag} variant="secondary" className="text-xs">
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50 italic">nessun tag</span>
+                        )}
+                      </div>
+                      
+                      {/* Right section: Saved Views */}
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        {/* Views display - more prominent */}
+                        {diagramViews[diagram.id] && diagramViews[diagram.id].length > 0 ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent/30 border">
+                                <Eye className="h-3 w-3 text-primary" />
+                                <span className="text-xs font-medium">{diagramViews[diagram.id].length}</span>
+                                <span className="text-xs text-muted-foreground hidden sm:inline">viste</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-sm">
+                              <div className="space-y-2">
+                                <div className="font-medium text-sm">Viste salvate ({diagramViews[diagram.id].length}):</div>
+                                <div className="space-y-1 max-h-32 overflow-y-auto">
+                                  {diagramViews[diagram.id].map(view => {
+                                    const viewComments = diagramComments[diagram.id]?.filter(c => c.linked_view_id === view.id) || [];
+                                    return (
+                                      <div 
+                                        key={view.id} 
+                                        className="flex items-center justify-between gap-2 p-1 bg-accent/20 rounded text-xs cursor-pointer hover:bg-accent/40 transition-colors"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Convert database format to local format for loading
+                                          const localView = {
+                                            id: view.id,
+                                            name: view.name,
+                                            zoom: view.zoom_level || 1,
+                                            pan: { x: view.pan_x || 0, y: view.pan_y || 0 },
+                                            timestamp: new Date(view.created_at).getTime()
+                                          };
+                                          // First load the diagram, then load the view
+                                          onLoadDiagram(diagram);
+                                          setTimeout(() => {
+                                            // Find preview ref and apply view
+                                            const previewElement = document.querySelector('.diagram-container');
+                                            if (previewElement) {
+                                              // Dispatch custom event to load view
+                                              window.dispatchEvent(new CustomEvent('loadView', { 
+                                                detail: localView 
+                                              }));
+                                            }
+                                          }, 100);
+                                        }}
+                                        title="Clicca per caricare questa vista"
+                                      >
+                                        <span className="font-medium text-primary hover:text-primary/80">{view.name}</span>
+                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                          <span>zoom: {view.zoom_level?.toFixed(1) || '1.0'}</span>
+                                          {viewComments.length > 0 && (
+                                            <div className="flex items-center gap-1">
+                                              <MessageCircle className="h-3 w-3" />
+                                              <span>{viewComments.length}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted/30 border border-dashed">
+                            <Eye className="h-3 w-3 text-muted-foreground/50" />
+                            <span className="text-xs text-muted-foreground/70">0 viste</span>
+                          </div>
                         )}
                         
-                        {/* Comments indicator */}
+                        {/* Comments indicator - smaller */}
                         {diagramComments[diagram.id] && diagramComments[diagram.id].length > 0 && (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                 <MessageCircle className="h-3 w-3" />
                                 <span>{diagramComments[diagram.id].length}</span>
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="max-w-xs">
                               <div className="space-y-1">
-                                <div className="font-medium">Commenti:</div>
+                                <div className="font-medium">Commenti ({diagramComments[diagram.id].length}):</div>
                                 {diagramComments[diagram.id].slice(0, 3).map(comment => (
                                   <div key={comment.id} className="text-xs p-1 bg-accent/50 rounded">
                                     {comment.text.length > 50 ? `${comment.text.substring(0, 50)}...` : comment.text}
@@ -595,7 +646,8 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                           </Tooltip>
                         )}
                         
-                        <span>
+                        {/* Date - smaller */}
+                        <span className="text-xs text-muted-foreground/60">
                           {new Date(diagram.updated_at).toLocaleDateString('it-IT', {
                             day: '2-digit',
                             month: '2-digit'
