@@ -2,9 +2,36 @@
   "permissions": {
     "allow": [
       "Bash(git clean:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)",
+      "Bash(git remote set-url:*)"
     ],
     "deny": [],
     "ask": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '📷 Auto-monitor SCREENSHOT attivo per questa sessione'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -Command \"if (Test-Path 'github-sync\\SCREENSHOT\\*.jpg') { Get-ChildItem 'github-sync\\SCREENSHOT\\*.jpg' | ForEach-Object { Write-Host '📷 Nuovo screenshot rilevato:' $_.Name } }\""
+          }
+        ]
+      }
+    ]
   }
 }
