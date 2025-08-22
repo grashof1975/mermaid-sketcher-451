@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Screenshot folder for Claude Code debugging - not to be committed
+github-sync/SCREENSHOT/
+**/SCREENSHOT/
+*.jpg
+*.png
+*.gif
+*.jpeg

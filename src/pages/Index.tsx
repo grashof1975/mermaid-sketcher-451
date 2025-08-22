@@ -6,17 +6,21 @@ import AIPrompt from '@/components/AIPrompt';
 import ViewSidebar, { SavedView } from '@/components/ViewSidebar';
 import CommentsPanel from '@/components/CommentsPanel';
 import { DiagramsList } from '@/components/DiagramsList';
+import { QuickCommentModal } from '@/components/QuickCommentModal';
+import { QuickNavigationBar } from '@/components/QuickNavigationBar';
 import { Comment, ProvisionalView } from '@/types/comments';
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronUp, MessageSquare, Save } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { debounce } from 'lodash';
 import { useAuth } from '@/contexts/AuthProvider';
 import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/utils/supabase';
 
 const DEFAULT_DIAGRAM = `graph TD
     A[Start] --> B{Decision}
@@ -62,6 +66,8 @@ const Index = () => {
   const [showFooterPanel, setShowFooterPanel] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("views");
   const [pendingCommentViewId, setPendingCommentViewId] = useState<string | null>(null);
+  const [showQuickCommentModal, setShowQuickCommentModal] = useState<boolean>(false);
+  const [selectedComponentText, setSelectedComponentText] = useState<string>('');
   const previewRef = useRef<PreviewRef>(null);
 
   // New database state
@@ -187,6 +193,9 @@ const Index = () => {
         } else if (data) {
           setCurrentDiagram(data);
           setHasUnsavedChanges(false);
+          // Load views and comments for the newly created diagram (should be empty)
+          await loadViewsForDiagram(data.id);
+          await loadCommentsForDiagram(data.id);
           if (userPreferences.toast_notifications_enabled) {
             toast({
               title: "Diagramma salvato",
@@ -207,16 +216,67 @@ const Index = () => {
     }
   };
 
-  const loadDiagram = (diagram: Diagram) => {
+  const loadDiagram = async (diagram: Diagram) => {
     setCurrentDiagram(diagram);
     setCode(diagram.mermaid_code);
     setHasUnsavedChanges(false);
+    
+    // Load views and comments for this diagram
+    if (user) {
+      await loadViewsForDiagram(diagram.id);
+      await loadCommentsForDiagram(diagram.id);
+    }
     
     if (userPreferences.toast_notifications_enabled) {
       toast({
         title: "Diagramma caricato",
         description: `"${diagram.title}" caricato con successo`,
       });
+    }
+  };
+
+  const loadViewsForDiagram = async (diagramId: string) => {
+    if (!user) return;
+    
+    try {
+      const views = await db.savedViews.getAll(diagramId, user.id);
+      
+      // Convert database format to local format
+      const localViews: SavedView[] = views.map(view => ({
+        id: view.id,
+        name: view.name,
+        zoom: view.zoom_level,
+        pan: { x: view.pan_x, y: view.pan_y },
+        timestamp: new Date(view.created_at).getTime()
+      }));
+      
+      setSavedViews(localViews);
+    } catch (error) {
+      console.error('Error loading views:', error);
+      setSavedViews([]);
+    }
+  };
+
+  const loadCommentsForDiagram = async (diagramId: string) => {
+    if (!user) return;
+    
+    try {
+      const comments = await db.comments.getAll(diagramId);
+      
+      // Convert database format to local format
+      const localComments: Comment[] = comments.map(comment => ({
+        id: comment.id,
+        text: comment.text,
+        timestamp: new Date(comment.created_at).getTime(),
+        viewId: comment.linked_view_id,
+        linkedViewId: comment.linked_view_id,
+        isProvisional: false
+      }));
+      
+      setComments(localComments);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+      setComments([]);
     }
   };
 
@@ -228,6 +288,8 @@ const Index = () => {
     setCurrentDiagram(null);
     setCode(DEFAULT_DIAGRAM);
     setHasUnsavedChanges(false);
+    setSavedViews([]); // Clear views when creating new diagram
+    setComments([]); // Clear comments when creating new diagram
     
     if (userPreferences.toast_notifications_enabled) {
       toast({
@@ -257,6 +319,8 @@ const Index = () => {
       setDiagrams([]);
       setCode(DEFAULT_DIAGRAM);
       setHasUnsavedChanges(false);
+      setSavedViews([]);
+      setComments([]);
     }
   }, [user, authLoading]);
 
@@ -358,15 +422,52 @@ const Index = () => {
     setCurrentView({ zoom, pan });
   };
 
-  const handleSaveView = (name: string) => {
-    const newView: SavedView = {
-      id: `view-${Date.now()}`,
-      name,
-      zoom: currentView.zoom,
-      pan: currentView.pan,
-      timestamp: Date.now()
-    };
-    setSavedViews(prev => [...prev, newView]);
+  const handleSaveView = async (name: string) => {
+    if (!user || !currentDiagram?.id) {
+      toast({
+        title: "Errore",
+        description: "Devi essere autenticato e avere un diagramma selezionato per salvare una vista",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const newView = await db.savedViews.create({
+        name,
+        diagram_id: currentDiagram.id,
+        user_id: user.id,
+        zoom_level: currentView.zoom,
+        pan_x: currentView.pan.x,
+        pan_y: currentView.pan.y,
+        sort_order: savedViews.length
+      });
+
+      // Convert database format to local format
+      const localView: SavedView = {
+        id: newView.id,
+        name: newView.name,
+        zoom: newView.zoom_level,
+        pan: { x: newView.pan_x, y: newView.pan_y },
+        timestamp: new Date(newView.created_at).getTime()
+      };
+
+      setSavedViews(prev => [...prev, localView]);
+      
+      if (userPreferences.toast_notifications_enabled) {
+        toast({
+          title: "Vista salvata",
+          description: `Vista "${name}" salvata con successo`,
+        });
+      }
+    } catch (error) {
+      console.error('Error saving view:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile salvare la vista",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleLoadView = (view: SavedView) => {
@@ -374,12 +475,67 @@ const Index = () => {
     setCurrentView({ zoom: view.zoom, pan: view.pan });
   };
 
-  const handleDeleteView = (id: string) => {
-    setSavedViews(prev => prev.filter(view => view.id !== id));
+  const handleDeleteView = async (id: string) => {
+    if (!user) return;
+
+    try {
+      // Prima trova tutti i commenti collegati a questa vista
+      const linkedComments = comments.filter(comment => comment.linkedViewId === id || comment.viewId === id);
+      
+      console.log(`Deleting view ${id} with ${linkedComments.length} linked comments`);
+      
+      // Elimina prima i commenti collegati
+      for (const comment of linkedComments) {
+        try {
+          await db.comments.delete(comment.id);
+          console.log(`Deleted comment ${comment.id}`);
+        } catch (commentError) {
+          console.error(`Error deleting comment ${comment.id}:`, commentError);
+          // Continua anche se un commento fallisce
+        }
+      }
+      
+      // Poi elimina la vista
+      await db.savedViews.delete(id);
+      
+      // Aggiorna lo stato locale
+      setSavedViews(prev => prev.filter(view => view.id !== id));
+      setComments(prev => prev.filter(comment => 
+        comment.linkedViewId !== id && comment.viewId !== id
+      ));
+      
+      if (userPreferences.toast_notifications_enabled) {
+        const deletedCount = linkedComments.length;
+        toast({
+          title: "Vista eliminata",
+          description: deletedCount > 0 
+            ? `Vista e ${deletedCount} commento${deletedCount > 1 ? 'i' : ''} collegat${deletedCount > 1 ? 'i' : 'o'} eliminat${deletedCount > 1 ? 'i' : 'o'}`
+            : "Vista eliminata con successo",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting view:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile eliminare la vista",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleUpdateViews = (views: SavedView[]) => {
+  const handleUpdateViews = async (views: SavedView[]) => {
     setSavedViews(views);
+    
+    // If we have a current diagram, sync the order to database
+    if (user && currentDiagram?.id) {
+      try {
+        for (let i = 0; i < views.length; i++) {
+          await db.savedViews.update(views[i].id, { sort_order: i });
+        }
+      } catch (error) {
+        console.error('Error updating view order:', error);
+      }
+    }
   };
 
   const handleResetView = () => {
@@ -503,6 +659,180 @@ const Index = () => {
     });
   };
 
+  // Quick navigation handlers
+  const handleJumpToComment = (comment: Comment) => {
+    // Se il commento è collegato a una vista, caricala prima
+    if (comment.linkedViewId || comment.viewId) {
+      const linkedView = savedViews.find(v => v.id === (comment.linkedViewId || comment.viewId));
+      if (linkedView) {
+        handleLoadView(linkedView);
+      }
+    }
+    
+    // Switcha al tab commenti e evidenzia il commento
+    setActiveTab("comments");
+    
+    // Scroll al commento dopo un breve delay
+    setTimeout(() => {
+      const commentElement = document.querySelector(`[data-comment-id="${comment.id}"]`);
+      if (commentElement) {
+        commentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        commentElement.classList.add('highlight-comment');
+        setTimeout(() => {
+          commentElement.classList.remove('highlight-comment');
+        }, 2000);
+      }
+    }, 100);
+  };
+
+  // Component selection handler
+  const handleComponentSelect = useCallback((componentId: string, bounds: { x: number; y: number; width: number; height: number }, nodeText: string) => {
+    console.log('Component selected:', componentId, bounds, nodeText);
+    
+    // Store the selected component text and open the modal
+    setSelectedComponentText(nodeText);
+    setShowQuickCommentModal(true);
+  }, []);
+
+  // Quick comment handler
+  const handleQuickSaveAndComment = async (viewName: string, commentText: string) => {
+    if (!user || !currentDiagram?.id) {
+      toast({
+        title: "Errore",
+        description: "Devi essere autenticato e avere un diagramma selezionato",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('Saving view with data:', {
+      name: viewName,
+      diagram_id: currentDiagram.id,
+      user_id: user.id,
+      zoom_level: currentView.zoom,
+      pan_x: currentView.pan.x,
+      pan_y: currentView.pan.y,
+      sort_order: savedViews.length
+    });
+
+    let newView;
+    let viewSaved = false;
+    let commentSaved = false;
+
+    try {
+      // 1. Save the view first (this should always work)
+      newView = await db.savedViews.create({
+        name: viewName,
+        diagram_id: currentDiagram.id,
+        user_id: user.id,
+        zoom_level: currentView.zoom,
+        pan_x: currentView.pan.x,
+        pan_y: currentView.pan.y,
+        sort_order: savedViews.length
+      });
+
+      console.log('View saved successfully:', newView);
+
+      // Convert to local format
+      const localView: SavedView = {
+        id: newView.id,
+        name: newView.name,
+        zoom: newView.zoom_level,
+        pan: { x: newView.pan_x, y: newView.pan_y },
+        timestamp: new Date(newView.created_at).getTime()
+      };
+
+      setSavedViews(prev => [...prev, localView]);
+      viewSaved = true;
+
+    } catch (viewError) {
+      console.error('Error saving view:', viewError);
+      toast({
+        title: "Errore salvataggio vista",
+        description: viewError instanceof Error ? viewError.message : "Impossibile salvare la vista",
+        variant: "destructive",
+      });
+      return; // Exit if view saving fails
+    }
+
+    // 2. Try to save comment separately (don't fail the whole operation if this fails)
+    if (commentText.trim() && newView) {
+      try {
+        const commentData = {
+          user_id: user.id,
+          diagram_id: currentDiagram.id,
+          text: commentText,
+          linked_view_id: newView.id,
+          is_resolved: false
+        };
+        
+        console.log('Saving comment with data:');
+        console.log('- user_id:', user.id);
+        console.log('- diagram_id:', currentDiagram.id);
+        console.log('- text:', commentText);
+        console.log('- linked_view_id:', newView.id);
+        console.log('- is_resolved:', false);
+        console.log('Full object:', JSON.stringify(commentData, null, 2));
+
+        // Save comment to database
+        const newDbComment = await db.comments.create(commentData);
+
+        console.log('Comment saved successfully:', newDbComment);
+
+        // Convert to local format
+        const newComment: Comment = {
+          id: newDbComment.id,
+          text: newDbComment.text,
+          timestamp: new Date(newDbComment.created_at).getTime(),
+          viewId: newView.id,
+          linkedViewId: newView.id,
+          isProvisional: false
+        };
+
+        setComments(prev => [...prev, newComment]);
+        commentSaved = true;
+
+      } catch (commentError) {
+        console.error('Error saving comment (but view was saved):', commentError);
+        console.error('Comment error details:');
+        
+        if (commentError instanceof Error) {
+          console.error('- Message:', commentError.message);
+          console.error('- Stack:', commentError.stack);
+        }
+        
+        // Log additional error details if available
+        if (commentError && typeof commentError === 'object') {
+          console.error('- Full error object:', JSON.stringify(commentError, null, 2));
+        }
+        
+        // Don't show error toast for comment failure if view succeeded
+      }
+    }
+
+    // Show success message based on what was saved
+    if (userPreferences.toast_notifications_enabled) {
+      if (viewSaved && commentSaved) {
+        toast({
+          title: "Vista e commento salvati",
+          description: `Vista "${viewName}" salvata con commento`,
+        });
+      } else if (viewSaved && commentText.trim()) {
+        toast({
+          title: "Vista salvata, commento fallito",
+          description: `Vista "${viewName}" salvata, ma il commento non è stato salvato`,
+          variant: "destructive",
+        });
+      } else if (viewSaved) {
+        toast({
+          title: "Vista salvata",
+          description: `Vista "${viewName}" salvata con successo`,
+        });
+      }
+    }
+
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-800 animate-fade-in">
       <Header 
@@ -544,7 +874,9 @@ const Index = () => {
                     code={code} 
                     className="flex-1" 
                     onViewChange={handleViewChange}
+                    onComponentSelect={handleComponentSelect}
                   />
+                  {/* Toggle panel button */}
                   <Button
                     variant="outline"
                     size="sm"
@@ -558,7 +890,19 @@ const Index = () => {
             </ResizablePanelGroup>
           </ResizablePanel>
           
-          <ResizableHandle withHandle />
+          <ResizableHandle withHandle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => previewRef.current?.fitToView()}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-background/90 backdrop-blur-sm border hover:bg-accent/50 transition-all duration-200 shadow-sm"
+              title="Adatta diagramma alla vista (100%)"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+              </svg>
+            </Button>
+          </ResizableHandle>
           
           <ResizablePanel defaultSize={25} minSize={15} maxSize={50}>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
@@ -636,6 +980,31 @@ const Index = () => {
           </Button>
         </div>
       </div>
+
+      {/* Quick Comment Modal */}
+      <QuickCommentModal
+        isOpen={showQuickCommentModal}
+        onClose={() => {
+          setShowQuickCommentModal(false);
+          setSelectedComponentText('');
+        }}
+        onSave={handleQuickSaveAndComment}
+        currentZoom={currentView.zoom}
+        currentPan={currentView.pan}
+        selectedComponentText={selectedComponentText}
+      />
+
+      {/* Quick Navigation Bar - Always visible when logged in */}
+      {user && (
+        <QuickNavigationBar
+          savedViews={savedViews}
+          comments={comments}
+          onLoadView={handleLoadView}
+          onJumpToComment={handleJumpToComment}
+          onQuickSaveComment={() => setShowQuickCommentModal(true)}
+          currentDiagram={currentDiagram}
+        />
+      )}
     </div>
   );
 };

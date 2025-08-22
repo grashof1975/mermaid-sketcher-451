@@ -1,0 +1,80 @@
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+
+echo =================================
+echo AI Diagram Creator - Local Test
+echo =================================
+
+echo.
+echo [1/5] Checking Node.js version...
+node --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo ERROR: Node.js non trovato. Installa Node.js 18+
+    pause
+    exit /b 1
+)
+for /f "usebackq delims=" %%v in (`node --version`) do set NODE_VER=%%v
+echo %NODE_VER%
+
+echo.
+echo [2/5] Installing dependencies...
+REM Evita che audit/fund influiscano sull'exit code
+call npm install --no-audit --no-fund
+set INSTALL_ERR=%errorlevel%
+if %INSTALL_ERR% neq 0 (
+    REM Alcuni ambienti restituiscono 1 anche se l'install e' ok: controlliamo node_modules
+    if exist node_modules (
+        echo Avviso: npm install ha restituito %INSTALL_ERR%, ma node_modules esiste. Procedo.
+    ) else (
+        echo ERROR: install fallita (npm install), codice %INSTALL_ERR%
+        pause
+        exit /b 1
+    )
+)
+
+REM --- controlla se esiste lo script "type-check"
+for /f "usebackq delims=" %%s in (`npm pkg get scripts.type-check 2^>nul`) do set TC=%%s
+set "TC=%TC:"=%"
+
+echo.
+if /I "%TC%"=="undefined" (
+    echo [3/5] Type checking... (saltato: script "type-check" assente)
+) else (
+    echo [3/5] Type checking...
+    call npm run type-check
+    if %errorlevel% neq 0 (
+        echo ERROR: TypeScript type checking fallito
+        pause
+        exit /b 1
+    )
+)
+
+echo.
+echo [4/5] Building project...
+call npm run build
+if %errorlevel% neq 0 (
+    echo ERROR: build fallito
+    pause
+    exit /b 1
+)
+
+echo.
+echo [5/5] Starting development server...
+echo.
+echo ===============================
+echo SUCCESS! All checks passed.
+echo ===============================
+echo.
+echo L'app provera' ad aprirsi su: http://localhost:5173
+echo (Se la porta e' diversa, controlla lo script "dev" nel package.json)
+echo.
+echo Ctrl+C per fermare il server
+echo.
+
+REM Avvia il server, poi apre il browser
+start "" cmd /c "call npm run dev"
+timeout /t 2 >nul
+start "" http://localhost:5173
+
+pause
+endlocal

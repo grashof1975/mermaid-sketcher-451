@@ -119,6 +119,17 @@
   .diagram-container {
     @apply p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-lg shadow-sm;
   }
+
+  .highlight-comment {
+    background-color: rgba(59, 130, 246, 0.1) !important;
+    border: 2px solid rgba(59, 130, 246, 0.3) !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
 }
 
 /* Custom scrollbar styles */
