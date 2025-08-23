@@ -246,12 +246,18 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewC
   }), [zoom, pan, onViewChange, focusOnComponent, fitToView, reset100View, setCenterPoint]);
   
   useEffect(() => {
-    // Initialize mermaid with custom config
+    // Initialize mermaid with config that works in both local and production
     mermaid.initialize({
       startOnLoad: false,
       theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
-      securityLevel: 'loose',
+      securityLevel: 'antiscript', // Better compatibility than strict but safer than loose
       fontFamily: 'Inter, sans-serif',
+      // Security settings
+      htmlLabels: true, // Enable for better compatibility
+      maxTextSize: 50000,
+      maxEdges: 500,
+      // Error handling
+      logLevel: process.env.NODE_ENV === 'development' ? 'debug' : 'error',
     });
   }, []);
   
