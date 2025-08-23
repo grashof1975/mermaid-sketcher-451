@@ -68,6 +68,13 @@ const Index = () => {
   const [pendingCommentViewId, setPendingCommentViewId] = useState<string | null>(null);
   const [showQuickCommentModal, setShowQuickCommentModal] = useState<boolean>(false);
   const [selectedComponentText, setSelectedComponentText] = useState<string>('');
+  const [nodeSelectionShortcut, setNodeSelectionShortcut] = useState<string>(() => {
+    return localStorage.getItem('mermaid-sketcher-node-selection-shortcut') || 'ctrl+click';
+  });
+  const [viewNameTemplate, setViewNameTemplate] = useState<string>(() => {
+    return localStorage.getItem('mermaid-sketcher-view-name-template') || 'v.01';
+  });
+  const [quickNavActiveTab, setQuickNavActiveTab] = useState<string>('views');
   const previewRef = useRef<PreviewRef>(null);
 
   // New database state
@@ -82,6 +89,10 @@ const Index = () => {
     ui_layout_config: {}
   });
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Zoom center selection states
+  const [isSelectingZoomCenter, setIsSelectingZoomCenter] = useState(false);
+  const [mouseCoordinates, setMouseCoordinates] = useState({ x: 0, y: 0 });
 
   // Database functions
   const loadUserPreferences = async () => {
@@ -422,6 +433,48 @@ const Index = () => {
     setCurrentView({ zoom, pan });
   };
 
+  // Zoom center selection functions
+  const handleStartZoomCenterSelection = () => {
+    setIsSelectingZoomCenter(true);
+    document.body.style.cursor = 'crosshair';
+  };
+
+  const handleCancelZoomCenterSelection = () => {
+    setIsSelectingZoomCenter(false);
+    document.body.style.cursor = 'auto';
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isSelectingZoomCenter) return;
+    setMouseCoordinates({ x: e.clientX, y: e.clientY });
+  }, [isSelectingZoomCenter]);
+
+  const handleZoomCenterClick = useCallback((e: MouseEvent) => {
+    if (!isSelectingZoomCenter) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Save zoom center to localStorage
+    const zoomCenter = { x: e.clientX, y: e.clientY };
+    localStorage.setItem('mermaid-sketcher-zoom-center', JSON.stringify(zoomCenter));
+    
+    // Apply the zoom center
+    if (previewRef.current) {
+      previewRef.current.setCenterPoint(e.clientX, e.clientY);
+    }
+    
+    // Exit selection mode
+    handleCancelZoomCenterSelection();
+    
+    if (userPreferences.toast_notifications_enabled) {
+      toast({
+        title: "Centro Zoom Impostato",
+        description: `Coordinate: (${e.clientX}, ${e.clientY})`,
+      });
+    }
+  }, [isSelectingZoomCenter, userPreferences.toast_notifications_enabled]);
+
   const handleSaveView = async (name: string) => {
     if (!user || !currentDiagram?.id) {
       toast({
@@ -433,13 +486,31 @@ const Index = () => {
     }
 
     try {
+      // Check if we have a saved zoom center and should use it for coordinates
+      let panX = currentView.pan.x;
+      let panY = currentView.pan.y;
+      
+      const savedZoomCenter = localStorage.getItem('mermaid-sketcher-zoom-center');
+      if (savedZoomCenter) {
+        try {
+          const zoomCenter = JSON.parse(savedZoomCenter);
+          // Convert zoom center coordinates to pan coordinates
+          // The zoom center represents the point that should stay fixed during zoom
+          panX = zoomCenter.x;
+          panY = zoomCenter.y;
+          console.log('Using zoom center coordinates for saved view:', { zoomCenter, convertedPan: { x: panX, y: panY } });
+        } catch (e) {
+          console.warn('Failed to parse saved zoom center, using current view coordinates');
+        }
+      }
+
       const newView = await db.savedViews.create({
         name,
         diagram_id: currentDiagram.id,
         user_id: user.id,
         zoom_level: currentView.zoom,
-        pan_x: currentView.pan.x,
-        pan_y: currentView.pan.y,
+        pan_x: panX,
+        pan_y: panY,
         sort_order: savedViews.length
       });
 
@@ -448,7 +519,7 @@ const Index = () => {
         id: newView.id,
         name: newView.name,
         zoom: newView.zoom_level,
-        pan: { x: newView.pan_x, y: newView.pan_y },
+        pan: { x: panX, y: panY }, // Use the same coordinates we saved
         timestamp: new Date(newView.created_at).getTime()
       };
 
@@ -457,7 +528,9 @@ const Index = () => {
       if (userPreferences.toast_notifications_enabled) {
         toast({
           title: "Vista salvata",
-          description: `Vista "${name}" salvata con successo`,
+          description: savedZoomCenter 
+            ? `Vista "${name}" salvata con centro zoom (${panX}, ${panY})`
+            : `Vista "${name}" salvata con successo`,
         });
       }
     } catch (error) {
@@ -686,12 +759,33 @@ const Index = () => {
   };
 
   // Component selection handler
-  const handleComponentSelect = useCallback((componentId: string, bounds: { x: number; y: number; width: number; height: number }, nodeText: string) => {
+  const handleComponentSelect = useCallback(async (componentId: string, bounds: { x: number; y: number; width: number; height: number }, nodeText: string) => {
     console.log('Component selected:', componentId, bounds, nodeText);
     
-    // Store the selected component text and open the modal
+    if (!user || !currentDiagram?.id) {
+      toast({
+        title: "Errore",
+        description: "Devi essere autenticato e avere un diagramma selezionato per salvare una vista",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Set component text and open comment modal (no zoom/focus change)
     setSelectedComponentText(nodeText);
     setShowQuickCommentModal(true);
+  }, [user, currentDiagram]);
+
+  // Handle node selection shortcut change
+  const handleNodeSelectionShortcutChange = useCallback((shortcut: string) => {
+    setNodeSelectionShortcut(shortcut);
+    localStorage.setItem('mermaid-sketcher-node-selection-shortcut', shortcut);
+  }, []);
+
+  // Handle view name template change
+  const handleViewNameTemplateChange = useCallback((template: string) => {
+    setViewNameTemplate(template);
+    localStorage.setItem('mermaid-sketcher-view-name-template', template);
   }, []);
 
   // Quick comment handler
@@ -720,14 +814,29 @@ const Index = () => {
     let commentSaved = false;
 
     try {
+      // Use zoom center coordinates if available, otherwise use current view coordinates
+      let panX = currentView.pan.x;
+      let panY = currentView.pan.y;
+      
+      const savedZoomCenter = localStorage.getItem('mermaid-sketcher-zoom-center');
+      if (savedZoomCenter) {
+        try {
+          const zoomCenter = JSON.parse(savedZoomCenter);
+          panX = zoomCenter.x;
+          panY = zoomCenter.y;
+        } catch (e) {
+          console.warn('Failed to parse saved zoom center:', e);
+        }
+      }
+
       // 1. Save the view first (this should always work)
       newView = await db.savedViews.create({
         name: viewName,
         diagram_id: currentDiagram.id,
         user_id: user.id,
         zoom_level: currentView.zoom,
-        pan_x: currentView.pan.x,
-        pan_y: currentView.pan.y,
+        pan_x: panX,
+        pan_y: panY,
         sort_order: savedViews.length
       });
 
@@ -744,6 +853,9 @@ const Index = () => {
 
       setSavedViews(prev => [...prev, localView]);
       viewSaved = true;
+
+      // Auto-switch to views tab after saving a view
+      setQuickNavActiveTab('views');
 
     } catch (viewError) {
       console.error('Error saving view:', viewError);
@@ -833,8 +945,64 @@ const Index = () => {
 
   };
 
+  // Event listeners for zoom center selection
+  useEffect(() => {
+    if (isSelectingZoomCenter) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('click', handleZoomCenterClick, true);
+      
+      // ESC key to cancel selection
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          handleCancelZoomCenterSelection();
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      
+      // Cleanup on component unmount or mode exit
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('click', handleZoomCenterClick, true);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [isSelectingZoomCenter, handleMouseMove, handleZoomCenterClick]);
+
+  // Load saved zoom center on component mount
+  useEffect(() => {
+    const savedZoomCenter = localStorage.getItem('mermaid-sketcher-zoom-center');
+    if (savedZoomCenter && previewRef.current) {
+      const center = JSON.parse(savedZoomCenter);
+      previewRef.current.setCenterPoint(center.x, center.y);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-800 animate-fade-in">
+      {/* Modalità selezione centro zoom - overlay e cursore coordinate */}
+      {isSelectingZoomCenter && (
+        <>
+          {/* Overlay trasparente per indicare la modalità attiva */}
+          <div className="fixed inset-0 z-40 bg-blue-500/5 backdrop-blur-[0.5px] border-4 border-blue-500/20 border-dashed" />
+          
+          {/* Istruzioni */}
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-600/90 text-white px-4 py-2 rounded-lg shadow-lg">
+            <div className="text-sm font-medium">🎯 Modalità Selezione Centro Zoom</div>
+            <div className="text-xs opacity-90">Clicca per impostare il centro • ESC per annullare</div>
+          </div>
+          
+          {/* Cursore personalizzato con coordinate */}
+          <div
+            className="fixed z-50 pointer-events-none bg-black/80 text-white px-2 py-1 rounded text-xs font-mono"
+            style={{
+              left: `${mouseCoordinates.x + 10}px`,
+              top: `${mouseCoordinates.y - 30}px`,
+            }}
+          >
+            🎯 ({mouseCoordinates.x}, {mouseCoordinates.y})
+          </div>
+        </>
+      )}
       <Header 
         onExport={handleExport}
         toggleTheme={toggleTheme}
@@ -875,6 +1043,7 @@ const Index = () => {
                     className="flex-1" 
                     onViewChange={handleViewChange}
                     onComponentSelect={handleComponentSelect}
+                    nodeSelectionShortcut={nodeSelectionShortcut}
                   />
                   {/* Toggle panel button */}
                   <Button
@@ -891,20 +1060,41 @@ const Index = () => {
           </ResizablePanel>
           
           <ResizableHandle withHandle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => previewRef.current?.fitToView()}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-background/90 backdrop-blur-sm border hover:bg-accent/50 transition-all duration-200 shadow-sm"
-              title="Adatta diagramma alla vista (100%)"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-              </svg>
-            </Button>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  // Simply save the current view as "Vista 100%" - NO view change!
+                  await handleSaveView("Vista 100%");
+                }}
+                className="bg-background/90 backdrop-blur-sm border hover:bg-accent/50 transition-all duration-200 shadow-sm"
+                title="Salva vista corrente come 'Vista 100%' di riferimento"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  // Set zoom center point at click position
+                  previewRef.current?.setCenterPoint(e.clientX, e.clientY);
+                }}
+                className="bg-background/90 backdrop-blur-sm border hover:bg-accent/50 transition-all duration-200 shadow-sm"
+                title="Imposta questo punto come centro per lo zoom con rotellina"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M12 2L12 22M2 12L22 12"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </Button>
+            </div>
           </ResizableHandle>
           
-          <ResizablePanel defaultSize={25} minSize={15} maxSize={50}>
+          <ResizablePanel defaultSize={25} minSize={10}>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="diagrams">Diagrammi</TabsTrigger>
@@ -992,6 +1182,8 @@ const Index = () => {
         currentZoom={currentView.zoom}
         currentPan={currentView.pan}
         selectedComponentText={selectedComponentText}
+        viewNameTemplate={viewNameTemplate}
+        existingViews={savedViews.map(view => ({ name: view.name, id: view.id }))}
       />
 
       {/* Quick Navigation Bar - Always visible when logged in */}
@@ -999,10 +1191,21 @@ const Index = () => {
         <QuickNavigationBar
           savedViews={savedViews}
           comments={comments}
+          diagrams={diagrams}
+          currentDiagram={currentDiagram}
           onLoadView={handleLoadView}
           onJumpToComment={handleJumpToComment}
+          onDeleteView={handleDeleteView}
+          onDeleteComment={handleDeleteComment}
           onQuickSaveComment={() => setShowQuickCommentModal(true)}
-          currentDiagram={currentDiagram}
+          onSetZoomCenter={handleStartZoomCenterSelection}
+          onSelectDiagram={loadDiagram}
+          nodeSelectionShortcut={nodeSelectionShortcut}
+          onNodeSelectionShortcutChange={handleNodeSelectionShortcutChange}
+          viewNameTemplate={viewNameTemplate}
+          onViewNameTemplateChange={handleViewNameTemplateChange}
+          activeTab={quickNavActiveTab}
+          onActiveTabChange={setQuickNavActiveTab}
         />
       )}
     </div>

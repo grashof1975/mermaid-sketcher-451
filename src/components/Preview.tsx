@@ -9,6 +9,7 @@ interface PreviewProps {
   className?: string;
   onViewChange?: (zoom: number, pan: { x: number; y: number }) => void;
   onComponentSelect?: (componentId: string, bounds: { x: number; y: number; width: number; height: number }, nodeText: string) => void;
+  nodeSelectionShortcut?: string;
 }
 
 export interface PreviewRef {
@@ -17,9 +18,11 @@ export interface PreviewRef {
   getView: () => { zoom: number; pan: { x: number; y: number } };
   focusOnComponent: (componentId: string) => void;
   fitToView: () => void;
+  reset100View: () => void;
+  setCenterPoint: (x: number, y: number) => void;
 }
 
-const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewChange, onComponentSelect }, ref) => {
+const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewChange, onComponentSelect, nodeSelectionShortcut = 'ctrl+click' }, ref) => {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -28,6 +31,7 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewC
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [lastMousePos, setLastMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
+  const [customZoomCenter, setCustomZoomCenter] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   
@@ -143,6 +147,85 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewC
     onViewChange?.(optimalZoom, { x: centerX, y: centerY });
   }, [onViewChange]);
 
+  // Set optimal "100%" view using fitToView calculation - this becomes the reference view
+  const reset100View = useCallback(() => {
+    if (!contentRef.current || !containerRef.current) {
+      console.log('Reset to 100% view - fallback mode');
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      onViewChange?.(1, { x: 0, y: 0 });
+      return;
+    }
+
+    const svgElement = contentRef.current.querySelector('svg');
+    if (!svgElement) {
+      console.log('Reset to 100% view - no SVG found');
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      onViewChange?.(1, { x: 0, y: 0 });
+      return;
+    }
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const svgRect = svgElement.getBoundingClientRect();
+    
+    // Get SVG viewBox or natural dimensions
+    const viewBox = svgElement.getAttribute('viewBox');
+    let svgWidth = svgRect.width;
+    let svgHeight = svgRect.height;
+    
+    if (viewBox) {
+      const [, , vbWidth, vbHeight] = viewBox.split(' ').map(Number);
+      svgWidth = vbWidth || svgWidth;
+      svgHeight = vbHeight || svgHeight;
+    }
+    
+    // Calculate optimal zoom to show entire diagram (same as fitToView)
+    const paddingFactor = 0.9; // 90% of container to leave some margin
+    const scaleX = (containerRect.width * paddingFactor) / svgWidth;
+    const scaleY = (containerRect.height * paddingFactor) / svgHeight;
+    const optimalZoom = Math.min(scaleX, scaleY, 1.0); // Don't zoom in past 100%
+    
+    // Center the diagram at optimal zoom
+    const scaledWidth = svgWidth * optimalZoom;
+    const scaledHeight = svgHeight * optimalZoom;
+    const centerX = (containerRect.width - scaledWidth) / 2;
+    const centerY = (containerRect.height - scaledHeight) / 2;
+    
+    console.log('Set optimal 100% reference view:', {
+      containerSize: { width: containerRect.width, height: containerRect.height },
+      svgSize: { width: svgWidth, height: svgHeight },
+      optimalZoom,
+      centerPosition: { x: centerX, y: centerY }
+    });
+    
+    // Set this as the optimal "100%" view
+    setZoom(optimalZoom);
+    setPan({ x: centerX, y: centerY });
+    onViewChange?.(optimalZoom, { x: centerX, y: centerY });
+    
+    // This view should be saved as "Vista 100%" reference
+    // The actual saving will be handled by the parent component
+  }, [onViewChange]);
+
+  // Set custom zoom center point
+  const setCenterPoint = useCallback((x: number, y: number) => {
+    if (!containerRef.current) return;
+    
+    const containerRect = containerRef.current.getBoundingClientRect();
+    
+    // Store absolute coordinates relative to container origin
+    const centerX = x - containerRect.left;
+    const centerY = y - containerRect.top;
+    
+    setCustomZoomCenter({ x: centerX, y: centerY });
+    console.log('Custom zoom center set (absolute):', { 
+      screenPos: { x, y },
+      containerPos: { x: centerX, y: centerY },
+      containerSize: { w: containerRect.width, h: containerRect.height }
+    });
+  }, []);
+
   // Expose functions via ref
   useImperativeHandle(ref, () => ({
     setView: (newZoom: number, newPan: { x: number; y: number }) => {
@@ -155,10 +238,12 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewC
       setSelectedComponent(null);
       onViewChange?.(1, { x: 0, y: 0 });
     },
+    reset100View,
     getView: () => ({ zoom, pan }),
     focusOnComponent,
-    fitToView
-  }), [zoom, pan, onViewChange, focusOnComponent, fitToView]);
+    fitToView,
+    setCenterPoint
+  }), [zoom, pan, onViewChange, focusOnComponent, fitToView, reset100View, setCenterPoint]);
   
   useEffect(() => {
     // Initialize mermaid with custom config
@@ -207,6 +292,27 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewC
     if (!svgElement) return;
 
     const handleSvgClick = (e: MouseEvent) => {
+      // Check if the required key combination is pressed for node selection
+      const shouldSelectNode = (() => {
+        switch (nodeSelectionShortcut) {
+          case 'click':
+            return true; // Always allow selection
+          case 'ctrl+click':
+            return e.ctrlKey;
+          case 'alt+click':
+            return e.altKey;
+          case 'shift+click':
+            return e.shiftKey;
+          default:
+            return e.ctrlKey; // Default to ctrl+click
+        }
+      })();
+
+      // If the required combination is not pressed, don't select nodes (allow pan)
+      if (!shouldSelectNode) {
+        return;
+      }
+
       // Stop propagation to prevent drag start
       e.stopPropagation();
       
@@ -302,7 +408,8 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewC
           }, nodeText);
         }
         
-        focusOnComponent(componentId);
+        // Removed automatic focus/zoom - component selection should not change zoom
+        // focusOnComponent(componentId);
       }
     };
 
@@ -345,21 +452,44 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewC
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    let zoomCenterX = e.clientX - rect.left;
+    let zoomCenterY = e.clientY - rect.top;
+
+    // Priority 1: Use custom zoom center if set
+    if (customZoomCenter) {
+      zoomCenterX = customZoomCenter.x;
+      zoomCenterY = customZoomCenter.y;
+      console.log('Zooming towards custom center point:', customZoomCenter);
+    }
+    // Priority 2: If there's a selected component, zoom towards it instead of mouse cursor
+    else if (selectedComponent && contentRef.current) {
+      const selectedElement = contentRef.current.querySelector(`[id*="${selectedComponent}"], .node[id*="${selectedComponent}"]`);
+      if (selectedElement) {
+        const elementRect = selectedElement.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        
+        // Use the center of the selected element as zoom center
+        zoomCenterX = (elementRect.left + elementRect.width / 2) - containerRect.left;
+        zoomCenterY = (elementRect.top + elementRect.height / 2) - containerRect.top;
+        
+        console.log('Zooming towards selected component:', selectedComponent, {
+          elementCenter: { x: zoomCenterX, y: zoomCenterY }
+        });
+      }
+    }
 
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
     const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.1), 20);
 
-    // Calculate new pan to zoom towards mouse cursor
+    // Calculate new pan to zoom towards the determined center point
     const zoomRatio = newZoom / zoom;
-    const newPanX = mouseX - (mouseX - pan.x) * zoomRatio;
-    const newPanY = mouseY - (mouseY - pan.y) * zoomRatio;
+    const newPanX = pan.x + (zoomCenterX - pan.x) * (1 - zoomRatio);
+    const newPanY = pan.y + (zoomCenterY - pan.y) * (1 - zoomRatio);
 
     setZoom(newZoom);
     setPan({ x: newPanX, y: newPanY });
     onViewChange?.(newZoom, { x: newPanX, y: newPanY });
-  }, [zoom, pan, onViewChange]);
+  }, [zoom, pan, onViewChange, selectedComponent]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 0) { // Left mouse button

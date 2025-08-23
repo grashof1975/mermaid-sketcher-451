@@ -13,6 +13,8 @@ interface QuickCommentModalProps {
   currentZoom: number;
   currentPan: { x: number; y: number };
   selectedComponentText?: string;
+  viewNameTemplate?: string;
+  existingViews?: Array<{ name: string; id: string }>;
 }
 
 export const QuickCommentModal: React.FC<QuickCommentModalProps> = ({
@@ -21,22 +23,57 @@ export const QuickCommentModal: React.FC<QuickCommentModalProps> = ({
   onSave,
   currentZoom,
   currentPan,
-  selectedComponentText
+  selectedComponentText,
+  viewNameTemplate = "v.01",
+  existingViews = []
 }) => {
   const [viewName, setViewName] = useState('');
   const [comment, setComment] = useState('');
+
+  // Function to get the next incremental identifier
+  const getNextIdentifier = (template: string, existingViews: Array<{ name: string; id: string }>) => {
+    // Extract the base pattern (e.g., "v." from "v.01")
+    const match = template.match(/^(.+?)(\d+)$/);
+    if (!match) {
+      return template; // If no number pattern, return as is
+    }
+    
+    const [, prefix, numberStr] = match;
+    const baseNumber = parseInt(numberStr, 10);
+    const numberLength = numberStr.length;
+    
+    // Find all existing views that match this pattern
+    const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)`);
+    const existingNumbers = existingViews
+      .map(view => {
+        const match = view.name.match(pattern);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter(num => num > 0);
+    
+    // Find the highest existing number and increment
+    const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : baseNumber - 1;
+    const nextNumber = maxNumber + 1;
+    
+    // Pad with zeros to maintain the original length
+    const paddedNumber = nextNumber.toString().padStart(numberLength, '0');
+    
+    return `${prefix}${paddedNumber}`;
+  };
 
   // Initialize comment with selected component text when modal opens
   useEffect(() => {
     if (isOpen && selectedComponentText) {
       const initialComment = `${selectedComponentText}\n    • `;
       setComment(initialComment);
-      setViewName(`Vista componente: ${selectedComponentText}`);
+      const nextIdentifier = getNextIdentifier(viewNameTemplate, existingViews);
+      setViewName(`${nextIdentifier} - ${selectedComponentText}`); // Combine incremental template with component text
     } else if (isOpen && !selectedComponentText) {
       setComment('');
-      setViewName('');
+      const nextIdentifier = getNextIdentifier(viewNameTemplate, existingViews);
+      setViewName(nextIdentifier); // Fallback to incremental template if no component text
     }
-  }, [isOpen, selectedComponentText]);
+  }, [isOpen, selectedComponentText, viewNameTemplate, existingViews]);
 
   const handleSave = () => {
     if (viewName.trim()) {
