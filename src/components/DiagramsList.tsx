@@ -30,6 +30,7 @@ interface SavedView {
   zoom_level: number;
   pan_x: number;
   pan_y: number;
+  created_at: string;
 }
 
 interface Comment {

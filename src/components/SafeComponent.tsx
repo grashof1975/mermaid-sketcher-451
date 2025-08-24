@@ -51,11 +51,11 @@ export const useSafeAsync = () => {
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<Error | null>(null)
 
-  const execute = React.useCallback(async <T>(
+  const execute = React.useCallback(async <T,>(
     asyncFn: () => Promise<T>,
     onSuccess?: (result: T) => void,
     onError?: (error: Error) => void
-  ) => {
+  ): Promise<T> => {
     try {
       setLoading(true)
       setError(null)
