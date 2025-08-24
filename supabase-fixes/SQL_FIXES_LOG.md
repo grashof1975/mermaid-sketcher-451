@@ -296,41 +296,244 @@ ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
 
 ---
 
-### APPLY_004 - Cascade Delete Comments ⏳ IN PREPARAZIONE
-**Data**: 2025-08-22  
-**Problema**: Commenti rimangono orfani quando si eliminano viste collegate  
-**Obiettivo**: Implementare CASCADE DELETE per integrità referenziale  
+### APPLY_004 - Sharing System Complete ✅ APPLICATO
+**Data**: 2025-08-23  
+**Problema**: Implementare sistema completo condivisione diagrammi  
+**Obiettivo**: Schema database per inviti, link pubblici e audit trail
 
 ```sql
--- APPLY_004: Add CASCADE DELETE for comments when view is deleted
--- Check current constraints
-SELECT tc.constraint_name, tc.table_name, kcu.column_name, ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name 
-FROM information_schema.table_constraints AS tc 
-JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
-WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = 'comments' AND tc.table_schema = 'public';
+-- APPLY_004: SHARING SYSTEM - Database Schema per Condivisione Diagrammi
+-- Data: 2025-08-23
+-- Descrizione: Implementazione completa sistema condivisione con privilegi granulari
 
--- Drop existing constraint
-ALTER TABLE public.comments DROP CONSTRAINT IF EXISTS comments_linked_view_id_fkey;
+-- 1. TABELLA CONDIVISIONI DIAGRAMMI
+CREATE TABLE IF NOT EXISTS diagram_shares (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  diagram_id UUID NOT NULL REFERENCES diagrams(id) ON DELETE CASCADE,
+  owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  shared_with_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  permission_level TEXT NOT NULL CHECK (permission_level IN ('viewer', 'commenter', 'editor')),
+  invited_by UUID REFERENCES auth.users(id),
+  invitation_message TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'revoked')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  responded_at TIMESTAMP WITH TIME ZONE,
+  expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '7 days'),
+  UNIQUE(diagram_id, shared_with_id)
+);
 
--- Add CASCADE DELETE constraint
-ALTER TABLE public.comments ADD CONSTRAINT comments_linked_view_id_fkey 
-FOREIGN KEY (linked_view_id) REFERENCES public.saved_views(id) ON DELETE CASCADE;
+-- 2. TABELLA LINK PUBBLICI
+CREATE TABLE IF NOT EXISTS public_share_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  diagram_id UUID NOT NULL REFERENCES diagrams(id) ON DELETE CASCADE,
+  created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  share_token TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'base64url'),
+  is_active BOOLEAN DEFAULT true,
+  allow_comments BOOLEAN DEFAULT false,
+  password_protected BOOLEAN DEFAULT false,
+  access_password TEXT,
+  view_count INTEGER DEFAULT 0,
+  unique_visitors JSONB DEFAULT '[]',
+  expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_accessed TIMESTAMP WITH TIME ZONE
+);
 
--- Verify new constraint
-SELECT tc.constraint_name, tc.table_name, kcu.column_name, ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name, rc.delete_rule
-FROM information_schema.table_constraints AS tc 
-JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
-JOIN information_schema.referential_constraints AS rc ON tc.constraint_name = rc.constraint_name
-WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = 'comments' AND kcu.column_name = 'linked_view_id' AND tc.table_schema = 'public';
+-- 3. TABELLA ATTIVITÀ CONDIVISIONE (Audit Log)
+CREATE TABLE IF NOT EXISTS sharing_activities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  diagram_id UUID NOT NULL REFERENCES diagrams(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  activity_type TEXT NOT NULL CHECK (activity_type IN (
+    'invited_user', 'accepted_invite', 'declined_invite', 'removed_user',
+    'permission_changed', 'link_created', 'link_revoked', 'public_access'
+  )),
+  target_user_id UUID REFERENCES auth.users(id),
+  old_permission TEXT,
+  new_permission TEXT,
+  metadata JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. ESTENSIONE TABELLA DIAGRAMMI
+ALTER TABLE diagrams ADD COLUMN IF NOT EXISTS sharing_enabled BOOLEAN DEFAULT true;
+ALTER TABLE diagrams ADD COLUMN IF NOT EXISTS default_share_permission TEXT DEFAULT 'viewer' 
+  CHECK (default_share_permission IN ('viewer', 'commenter', 'editor'));
+
+-- 5. RLS POLICIES
+CREATE POLICY "Users can view shares for their diagrams" ON diagram_shares FOR SELECT 
+USING (owner_id = auth.uid() OR shared_with_id = auth.uid());
+
+CREATE POLICY "Owners can manage all shares" ON diagram_shares FOR ALL
+USING (owner_id = auth.uid());
+
+CREATE POLICY "Users can respond to their invites" ON diagram_shares FOR UPDATE
+USING (shared_with_id = auth.uid());
+
+CREATE POLICY "Owners manage public links" ON public_share_links FOR ALL
+USING (created_by = auth.uid());
+
+CREATE POLICY "Users see activities for their diagrams" ON sharing_activities FOR SELECT
+USING (
+  diagram_id IN (
+    SELECT id FROM diagrams WHERE user_id = auth.uid()
+    UNION
+    SELECT diagram_id FROM diagram_shares WHERE shared_with_id = auth.uid() AND status = 'accepted'
+  )
+);
+
+-- 6. INDICI PER PERFORMANCE
+CREATE INDEX IF NOT EXISTS idx_diagram_shares_diagram_id ON diagram_shares(diagram_id);
+CREATE INDEX IF NOT EXISTS idx_diagram_shares_shared_with ON diagram_shares(shared_with_id);
+CREATE INDEX IF NOT EXISTS idx_diagram_shares_status ON diagram_shares(status);
+CREATE INDEX IF NOT EXISTS idx_public_share_links_token ON public_share_links(share_token);
+CREATE INDEX IF NOT EXISTS idx_public_share_links_diagram ON public_share_links(diagram_id);
+CREATE INDEX IF NOT EXISTS idx_sharing_activities_diagram ON sharing_activities(diagram_id);
+
+-- 7. FUNZIONI UTILITY
+CREATE OR REPLACE FUNCTION get_user_diagram_permission(p_diagram_id UUID, p_user_id UUID)
+RETURNS TEXT AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM diagrams WHERE id = p_diagram_id AND user_id = p_user_id) THEN
+    RETURN 'owner';
+  END IF;
+  
+  RETURN (
+    SELECT permission_level 
+    FROM diagram_shares 
+    WHERE diagram_id = p_diagram_id AND shared_with_id = p_user_id AND status = 'accepted'
+    LIMIT 1
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION log_sharing_activity(
+  p_diagram_id UUID,
+  p_activity_type TEXT,
+  p_target_user_id UUID DEFAULT NULL,
+  p_old_permission TEXT DEFAULT NULL,
+  p_new_permission TEXT DEFAULT NULL,
+  p_metadata JSONB DEFAULT NULL
+)
+RETURNS UUID AS $$
+DECLARE
+  activity_id UUID;
+BEGIN
+  INSERT INTO sharing_activities (
+    diagram_id, user_id, activity_type, target_user_id,
+    old_permission, new_permission, metadata
+  )
+  VALUES (
+    p_diagram_id, auth.uid(), p_activity_type, p_target_user_id,
+    p_old_permission, p_new_permission, p_metadata
+  )
+  RETURNING id INTO activity_id;
+  
+  RETURN activity_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 8. ENABLE RLS
+ALTER TABLE diagram_shares ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public_share_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sharing_activities ENABLE ROW LEVEL SECURITY;
 ```
 
-**Risultato**: ⏳ IN ATTESA - Da applicare in SQL Editor  
-**Test Frontend**: ⏳ PENDING  
-**Status**: PREPARATO
+**Risultato**: ✅ SUCCESSO - Applicato senza errori in SQL Editor  
+**Test Frontend**: ✅ TESTABILE - Tab Condivisione funzionante  
+**Status**: COMPLETATO
+
+**Note**: Schema completo per sistema condivisione implementato. Tabelle create:
+- `diagram_shares` per inviti tra utenti
+- `public_share_links` per link pubblici  
+- `sharing_activities` per audit trail
+- RLS policies e funzioni utility complete
 
 **Note**: Soluzione frontend già implementata come backup. Questa migrazione garantisce integrità a livello database.
+
+---
+
+### APPLY_005B - Fix Definitivo Encoding Base64URL ✅ APPLICATO
+**Data**: 2025-08-23  
+**Problema**: APPLY_005 non aveva risolto completamente l'errore "base64url" - continuavano errori 22023  
+**Obiettivo**: Fix definitivo dell'encoding per generazione token URL-safe
+
+```sql
+-- APPLY_005B: Fix definitivo base64url encoding error
+-- Problema: PostgreSQL non riconosce encoding "base64url" - errore 22023
+-- Soluzione: Modifica diretta del default della colonna esistente
+
+-- 1. Rimuovi constraint esistente
+ALTER TABLE public_share_links DROP CONSTRAINT public_share_links_share_token_key;
+
+-- 2. Modifica SOLO il default della colonna esistente
+ALTER TABLE public_share_links 
+ALTER COLUMN share_token SET DEFAULT 
+replace(replace(encode(gen_random_bytes(32), 'base64'), '+', '-'), '/', '_');
+
+-- 3. Ripristina constraint con nome diverso
+ALTER TABLE public_share_links 
+ADD CONSTRAINT public_share_links_token_unique UNIQUE (share_token);
+
+-- 4. Test: genera nuovo token per verificare
+SELECT replace(replace(encode(gen_random_bytes(32), 'base64'), '+', '-'), '/', '_') AS test_token;
+
+-- 5. Riabilita RLS
+ALTER TABLE public_share_links ENABLE ROW LEVEL SECURITY;
+```
+
+**Risultato**: ✅ SUCCESSO - Token URL-safe generato correttamente  
+**Test Frontend**: ✅ SUCCESSO - Creazione link pubblici ora funziona!  
+**Status**: COMPLETATO
+
+**Note**: Fix risolve definitivamente l'errore "unrecognized encoding: base64url". Token generati correttamente in formato URL-safe.
+
+---
+
+### APPLY_006 - RLS Policies Accesso Pubblico Anonimo ✅ APPLICATO
+**Data**: 2025-08-23  
+**Problema**: Query getByToken fallisce con 400 - RLS blocca accesso anonimo ai link pubblici  
+**Obiettivo**: Abilitare accesso pubblico anonimo per i link attivi senza autenticazione
+
+```sql
+-- APPLY_006: Fix RLS policies per accesso pubblico anonimo
+-- Problema: Query getByToken fallisce con 400 - RLS blocca accesso anonimo
+
+-- 1. Policy per accesso pubblico ai link attivi (senza auth)
+CREATE POLICY "Public access to active links"
+ON public_share_links FOR SELECT
+USING (is_active = true AND (expires_at IS NULL OR expires_at > NOW()));
+
+-- 2. Policy per accesso pubblico ai diagrammi condivisi (senza auth) 
+CREATE POLICY "Public access to shared diagrams"
+ON diagrams FOR SELECT
+USING (
+  id IN (
+    SELECT diagram_id 
+    FROM public_share_links 
+    WHERE is_active = true 
+      AND (expires_at IS NULL OR expires_at > NOW())
+  )
+);
+
+-- 3. Policy per accesso pubblico ai profili dei creatori (senza auth)
+CREATE POLICY "Public access to creator profiles"
+ON profiles FOR SELECT
+USING (
+  id IN (
+    SELECT created_by 
+    FROM public_share_links 
+    WHERE is_active = true 
+      AND (expires_at IS NULL OR expires_at > NOW())
+  )
+);
+```
+
+**Risultato**: ✅ SUCCESSO - Policies create senza errori  
+**Test Frontend**: ✅ SUCCESSO - Pagine pubbliche ora accessibili!  
+**Status**: COMPLETATO
+
+**Note**: Permette accesso pubblico anonimo ai diagrammi condivisi tramite link attivi. Query JOIN iniziali ancora problematiche ma risolte con query separate.
 
 ---
 

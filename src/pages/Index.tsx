@@ -8,6 +8,8 @@ import CommentsPanel from '@/components/CommentsPanel';
 import { DiagramsList } from '@/components/DiagramsList';
 import { QuickCommentModal } from '@/components/QuickCommentModal';
 import { QuickNavigationBar } from '@/components/QuickNavigationBar';
+import { InviteUserModal } from '@/components/InviteUserModal';
+import { CreatePublicLinkModal } from '@/components/CreatePublicLinkModal';
 import { Comment, ProvisionalView } from '@/types/comments';
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -49,6 +51,27 @@ interface UserPreferences {
   auto_save_interval: number;
   default_zoom_level: number;
   ui_layout_config: any;
+}
+
+interface Collaborator {
+  user: {
+    username: string;
+    email: string;
+    avatar_url?: string;
+  };
+  permission_level: 'viewer' | 'commenter' | 'editor';
+  joined_at: string;
+  last_activity?: string;
+}
+
+interface PublicLink {
+  id: string;
+  share_token: string;
+  is_active: boolean;
+  allow_comments: boolean;
+  view_count: number;
+  created_at: string;
+  expires_at?: string;
 }
 
 const Index = () => {
@@ -93,6 +116,13 @@ const Index = () => {
   // Zoom center selection states
   const [isSelectingZoomCenter, setIsSelectingZoomCenter] = useState(false);
   const [mouseCoordinates, setMouseCoordinates] = useState({ x: 0, y: 0 });
+
+  // Sharing system state
+  const [currentUserRole, setCurrentUserRole] = useState<'owner' | 'editor' | 'commenter' | 'viewer'>('owner');
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [publicLinks, setPublicLinks] = useState<PublicLink[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showPublicLinkModal, setShowPublicLinkModal] = useState(false);
 
   // Database functions
   const loadUserPreferences = async () => {
@@ -945,6 +975,193 @@ const Index = () => {
 
   };
 
+  // Sharing system functions
+  const loadDiagramSharing = async (diagramId: string) => {
+    if (!user || !diagramId) return;
+
+    // Load collaborators (may fail due to foreign key issues)
+    try {
+      const collaboratorData = await db.diagramShares.getAll(diagramId);
+      setCollaborators(collaboratorData.map((share: any) => ({
+        user: share.shared_with,
+        permission_level: share.permission_level,
+        joined_at: share.responded_at || share.created_at,
+        last_activity: share.last_activity
+      })));
+    } catch (error) {
+      console.error('Error loading diagram collaborators:', error);
+      setCollaborators([]); // Reset to empty array
+    }
+
+    // Load public links (independent operation)
+    try {
+      const linkData = await db.publicShareLinks.getAll(diagramId);
+      setPublicLinks(linkData);
+    } catch (error) {
+      console.error('Error loading public links:', error);
+      setPublicLinks([]); // Reset to empty array
+    }
+
+    // Determine current user role
+    try {
+      if (currentDiagram?.user_id === user.id) {
+        setCurrentUserRole('owner');
+      } else {
+        const userPermission = await db.diagramShares.getUserPermission(diagramId, user.id);
+        setCurrentUserRole(userPermission || 'viewer');
+      }
+    } catch (error) {
+      console.error('Error determining user role:', error);
+      setCurrentUserRole('owner'); // Default fallback
+    }
+  };
+
+  const handleInviteUser = () => {
+    setShowInviteModal(true);
+  };
+
+  const handleCreatePublicLink = () => {
+    setShowPublicLinkModal(true);
+  };
+
+  const handleManageSharing = () => {
+    // Open comprehensive sharing management modal
+    toast({
+      title: "Gestione Completa",
+      description: "Funzionalità in sviluppo - usa i pulsanti rapidi per ora",
+    });
+  };
+
+  const handleInviteSent = async (inviteData: any) => {
+    if (!currentDiagram) return;
+
+    try {
+      // Here would be the actual API call to send invitation
+      // await db.diagramShares.invite({
+      //   diagram_id: currentDiagram.id,
+      //   shared_with_email: inviteData.email,
+      //   permission_level: inviteData.permission,
+      //   invitation_message: inviteData.message
+      // });
+
+      // Mock success for now
+      const newCollaborator: Collaborator = {
+        user: {
+          username: inviteData.email.split('@')[0],
+          email: inviteData.email,
+        },
+        permission_level: inviteData.permission,
+        joined_at: new Date().toISOString(),
+      };
+
+      setCollaborators(prev => [...prev, newCollaborator]);
+
+      toast({
+        title: "Invito inviato",
+        description: `Invito inviato a ${inviteData.email}`,
+      });
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      toast({
+        title: "Errore",
+        description: "Errore nell'invio dell'invito",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePublicLinkCreated = async (linkData: any) => {
+    if (!currentDiagram) return;
+
+    try {
+      // Here would be the actual API call to create public link
+      // const newLink = await db.publicShareLinks.create({
+      //   diagram_id: currentDiagram.id,
+      //   allow_comments: linkData.allow_comments,
+      //   password_protected: linkData.password_protected,
+      //   access_password: linkData.access_password
+      // });
+
+      // Mock success for now
+      const newLink: PublicLink = {
+        id: 'mock-' + Date.now(),
+        share_token: linkData.share_token,
+        is_active: true,
+        allow_comments: linkData.allow_comments,
+        view_count: 0,
+        created_at: new Date().toISOString(),
+        expires_at: linkData.expires_at
+      };
+
+      setPublicLinks(prev => [...prev, newLink]);
+
+      toast({
+        title: "Link pubblico creato",
+        description: "Il link è stato copiato negli appunti",
+      });
+    } catch (error) {
+      console.error('Error creating public link:', error);
+      toast({
+        title: "Errore",
+        description: "Errore nella creazione del link pubblico",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRevokeCollaborator = async (userEmail: string) => {
+    try {
+      // Here would be the actual API call to revoke collaborator
+      setCollaborators(prev => prev.filter(collab => collab.user.email !== userEmail));
+
+      toast({
+        title: "Collaboratore rimosso",
+        description: `${userEmail} è stato rimosso dalla collaborazione`,
+      });
+    } catch (error) {
+      console.error('Error revoking collaborator:', error);
+      toast({
+        title: "Errore",
+        description: "Errore nella rimozione del collaboratore",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRevokePublicLink = async (linkId: string) => {
+    try {
+      // API call to revoke public link
+      await db.publicShareLinks.revoke(linkId);
+      
+      // Remove from local state
+      setPublicLinks(prev => prev.filter(link => link.id !== linkId));
+
+      toast({
+        title: "Link pubblico revocato",
+        description: "Il link pubblico è stato disattivato",
+      });
+    } catch (error) {
+      console.error('Error revoking public link:', error);
+      toast({
+        title: "Errore",
+        description: "Errore nella revoca del link pubblico",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Load sharing data when current diagram changes
+  useEffect(() => {
+    if (currentDiagram) {
+      loadDiagramSharing(currentDiagram.id);
+    } else {
+      // Reset sharing state when no diagram selected
+      setCollaborators([]);
+      setPublicLinks([]);
+      setCurrentUserRole('owner');
+    }
+  }, [currentDiagram, user]);
+
   // Event listeners for zoom center selection
   useEffect(() => {
     if (isSelectingZoomCenter) {
@@ -1206,7 +1423,40 @@ const Index = () => {
           onViewNameTemplateChange={handleViewNameTemplateChange}
           activeTab={quickNavActiveTab}
           onActiveTabChange={setQuickNavActiveTab}
+          
+          // Sharing props
+          currentUserRole={currentUserRole}
+          collaborators={collaborators}
+          publicLinks={publicLinks}
+          sharingEnabled={!!currentDiagram}
+          onInviteUser={handleInviteUser}
+          onManageSharing={handleManageSharing}
+          onCreatePublicLink={handleCreatePublicLink}
+          onRevokeCollaborator={handleRevokeCollaborator}
+          onRevokePublicLink={handleRevokePublicLink}
         />
+      )}
+
+      {/* Sharing Modals */}
+      {currentDiagram && (
+        <>
+          <InviteUserModal
+            isOpen={showInviteModal}
+            onClose={() => setShowInviteModal(false)}
+            diagramId={currentDiagram.id}
+            diagramTitle={currentDiagram.title}
+            currentUserName={user?.email?.split('@')[0] || 'Utente'}
+            onInviteSent={handleInviteSent}
+          />
+          
+          <CreatePublicLinkModal
+            isOpen={showPublicLinkModal}
+            onClose={() => setShowPublicLinkModal(false)}
+            diagramId={currentDiagram.id}
+            diagramTitle={currentDiagram.title}
+            onLinkCreated={handlePublicLinkCreated}
+          />
+        </>
       )}
     </div>
   );

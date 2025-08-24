@@ -9,7 +9,15 @@
       "Bash(git rm:*)",
       "Bash(git commit:*)",
       "Bash(dir:*)",
-      "Bash(git show-branch:*)"
+      "Bash(git show-branch:*)",
+      "Bash(code database-fixes/APPLY_004_SHARING_SYSTEM_PENDING.sql)",
+      "Bash(ren:*)",
+      "Bash(npm run dev:*)",
+      "Bash(github-sync/resume-screenshot-hook.bat)",
+      "Bash(move:*)",
+      "Bash(echo:*)",
+      "Bash(git for-each-ref:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []

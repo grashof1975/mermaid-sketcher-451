@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, MessageCircle, ChevronRight, ChevronLeft, Clock, GripVertical, Save, Trash2, FileText, FolderOpen, Settings } from 'lucide-react';
+import { Eye, MessageCircle, ChevronRight, ChevronLeft, Clock, GripVertical, Save, Trash2, FileText, FolderOpen, Settings, Share, Users, Link } from 'lucide-react';
 import { SavedView } from '@/components/ViewSidebar';
 import { Comment } from '@/types/comments';
 
@@ -20,6 +20,27 @@ interface Diagram {
   tags: string[];
   created_at: string;
   updated_at: string;
+}
+
+interface Collaborator {
+  user: {
+    username: string;
+    email: string;
+    avatar_url?: string;
+  };
+  permission_level: 'viewer' | 'commenter' | 'editor';
+  joined_at: string;
+  last_activity?: string;
+}
+
+interface PublicLink {
+  id: string;
+  share_token: string;
+  is_active: boolean;
+  allow_comments: boolean;
+  view_count: number;
+  created_at: string;
+  expires_at?: string;
 }
 
 interface QuickNavigationBarProps {
@@ -41,6 +62,17 @@ interface QuickNavigationBarProps {
   activeTab?: string;
   onActiveTabChange?: (tab: string) => void;
   className?: string;
+  
+  // Sharing props
+  currentUserRole?: 'owner' | 'editor' | 'commenter' | 'viewer';
+  collaborators?: Collaborator[];
+  publicLinks?: PublicLink[];
+  sharingEnabled?: boolean;
+  onInviteUser?: () => void;
+  onManageSharing?: () => void;
+  onCreatePublicLink?: () => void;
+  onRevokeCollaborator?: (userId: string) => void;
+  onRevokePublicLink?: (linkId: string) => void;
 }
 
 export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
@@ -61,7 +93,18 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
   onViewNameTemplateChange,
   activeTab = "views",
   onActiveTabChange,
-  className = ""
+  className = "",
+  
+  // Sharing props
+  currentUserRole = 'owner',
+  collaborators = [],
+  publicLinks = [],
+  sharingEnabled = true,
+  onInviteUser,
+  onManageSharing,
+  onCreatePublicLink,
+  onRevokeCollaborator,
+  onRevokePublicLink
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -342,7 +385,7 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
 
         <ScrollArea style={{ height: `${size.height - 60}px` }}>
           <Tabs value={activeTab} onValueChange={onActiveTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mx-3 mt-3">
+            <TabsList className="grid w-full grid-cols-4 mx-3 mt-3">
               <TabsTrigger value="views" className="text-xs">
                 <Eye className="h-3 w-3 mr-1" />
                 Viste
@@ -351,9 +394,13 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
                 <FileText className="h-3 w-3 mr-1" />
                 Diagrammi
               </TabsTrigger>
+              <TabsTrigger value="sharing" className="text-xs">
+                <Share className="h-3 w-3 mr-1" />
+                Condivisione
+              </TabsTrigger>
               <TabsTrigger value="shortcuts" className="text-xs">
                 <Settings className="h-3 w-3 mr-1" />
-                Shortcuts
+                Config
               </TabsTrigger>
             </TabsList>
             
@@ -671,6 +718,197 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="sharing" className="p-3 space-y-4 mt-2">
+              {/* Empty state - Sharing not available */}
+              {(!currentDiagram || !sharingEnabled) && (
+                <div className="text-center text-muted-foreground py-6">
+                  <Share className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Condivisione non disponibile</p>
+                  <p className="text-xs mt-1">
+                    Seleziona un diagramma per condividerlo
+                  </p>
+                </div>
+              )}
+              
+              {/* Sharing available */}
+              {currentDiagram && sharingEnabled && (
+                <div className="space-y-4">
+                  {/* Current User Role */}
+                  <div className="bg-accent/30 rounded p-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="font-medium">Il tuo ruolo:</div>
+                      <Badge variant={currentUserRole === 'owner' ? 'default' : 'secondary'} className="text-xs">
+                        {currentUserRole === 'owner' && '👑 Proprietario'}
+                        {currentUserRole === 'editor' && '✏️ Editor'}
+                        {currentUserRole === 'commenter' && '💬 Commentatore'}
+                        {currentUserRole === 'viewer' && '👁️ Visualizzatore'}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Quick Actions - Only for Owner */}
+                  {currentUserRole === 'owner' && (
+                    <div className="space-y-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onInviteUser}
+                        className="w-full justify-start text-xs h-8"
+                      >
+                        <Users className="h-3 w-3 mr-2" />
+                        Invita Collaboratore
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onCreatePublicLink}
+                        className="w-full justify-start text-xs h-8"
+                      >
+                        <Link className="h-3 w-3 mr-2" />
+                        Crea Link Pubblico
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Collaboratori */}
+                  {collaborators.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Users className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm font-medium">Collaboratori</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {collaborators.length}
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        {collaborators.slice(0, 5).map((collaborator, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-950/50 rounded group">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                                {collaborator.user.username?.charAt(0).toUpperCase() || '?'}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium truncate">{collaborator.user.username}</div>
+                                <div className="text-muted-foreground truncate">{collaborator.user.email}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-xs px-1 py-0 h-4">
+                                {collaborator.permission_level === 'editor' && '✏️'}
+                                {collaborator.permission_level === 'commenter' && '💬'}
+                                {collaborator.permission_level === 'viewer' && '👁️'}
+                                {collaborator.permission_level}
+                              </Badge>
+                              {currentUserRole === 'owner' && onRevokeCollaborator && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onRevokeCollaborator(collaborator.user.email)}
+                                  className="h-5 w-5 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Rimuovi collaboratore"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {collaborators.length > 5 && (
+                          <div className="text-xs text-muted-foreground text-center py-1">
+                            ...e {collaborators.length - 5} altri collaboratori
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Link Pubblici */}
+                  {publicLinks.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Link className="h-4 w-4 text-green-500" />
+                        <span className="text-sm font-medium">Link Pubblici</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {publicLinks.length}
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        {publicLinks.slice(0, 3).map((link) => (
+                          <div key={link.id} className="flex items-center justify-between p-2 text-xs bg-green-50 hover:bg-green-100 dark:bg-green-950/30 dark:hover:bg-green-950/50 rounded">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className="font-medium">Link Pubblico</div>
+                                {link.allow_comments && (
+                                  <Badge variant="outline" className="text-xs px-1 py-0 h-4">
+                                    💬 commenti
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-muted-foreground">
+                                {link.view_count} visualizzazioni • {new Date(link.created_at).toLocaleDateString('it-IT')}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/public/${link.share_token}`)}
+                                className="h-5 w-5 p-0 text-green-600 hover:text-green-700"
+                                title="Copia link"
+                              >
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                                  <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                                </svg>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onRevokePublicLink?.(link.id)}
+                                className="h-5 w-5 p-0 text-red-600 hover:text-red-700"
+                                title="Revoca link pubblico"
+                              >
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                                  <path d="M8 21l8-8"/>
+                                </svg>
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {publicLinks.length > 3 && (
+                          <div className="text-xs text-muted-foreground text-center py-1">
+                            ...e {publicLinks.length - 3} altri link
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Gestione Completa - Solo Owner */}
+                  {currentUserRole === 'owner' && onManageSharing && (
+                    <div className="border-t pt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onManageSharing}
+                        className="w-full justify-start text-xs h-8"
+                      >
+                        <Settings className="h-3 w-3 mr-2" />
+                        Gestisci Condivisioni
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </TabsContent>

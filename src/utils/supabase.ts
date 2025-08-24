@@ -237,6 +237,196 @@ export const db = {
     }
   },
 
+  // Diagram Sharing
+  diagramShares: {
+    async getAll(diagramId: string) {
+      const { data, error } = await supabase
+        .from('diagram_shares')
+        .select(`
+          *,
+          shared_with:shared_with_id(username, email, avatar_url),
+          invited_by:invited_by(username, email, avatar_url)
+        `)
+        .eq('diagram_id', diagramId)
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      return data
+    },
+
+    async invite(share: InsertTables<'diagram_shares'>) {
+      const { data, error } = await supabase
+        .from('diagram_shares')
+        .insert(share)
+        .select('*')
+        .single()
+      
+      if (error) throw error
+      return data
+    },
+
+    async respondToInvite(shareId: string, action: 'accepted' | 'declined') {
+      const { data, error } = await supabase
+        .from('diagram_shares')
+        .update({ 
+          status: action,
+          responded_at: new Date().toISOString()
+        })
+        .eq('id', shareId)
+        .select('*')
+        .single()
+      
+      if (error) throw error
+      return data
+    },
+
+    async updatePermission(shareId: string, newPermission: string) {
+      const { data, error } = await supabase
+        .from('diagram_shares')
+        .update({ permission_level: newPermission })
+        .eq('id', shareId)
+        .select('*')
+        .single()
+      
+      if (error) throw error
+      return data
+    },
+
+    async remove(shareId: string) {
+      const { error } = await supabase
+        .from('diagram_shares')
+        .delete()
+        .eq('id', shareId)
+      
+      if (error) throw error
+    },
+
+    async getUserPermission(diagramId: string, userId: string) {
+      const { data, error } = await supabase.rpc('get_user_diagram_permission', {
+        p_diagram_id: diagramId,
+        p_user_id: userId
+      })
+      
+      if (error) throw error
+      return data
+    }
+  },
+
+  // Public Share Links
+  publicShareLinks: {
+    async getAll(diagramId: string) {
+      const { data, error } = await supabase
+        .from('public_share_links')
+        .select('*')
+        .eq('diagram_id', diagramId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      return data
+    },
+
+    async create(link: InsertTables<'public_share_links'>) {
+      const { data, error } = await supabase
+        .from('public_share_links')
+        .insert(link)
+        .select('*')
+        .single()
+      
+      if (error) throw error
+      return data
+    },
+
+    async getByToken(token: string) {
+      // First get the link
+      const { data: linkData, error: linkError } = await supabase
+        .from('public_share_links')
+        .select('*')
+        .eq('share_token', token)
+        .eq('is_active', true)
+        .single()
+      
+      if (linkError) throw linkError
+      
+      // Then get diagram separately
+      const { data: diagramData, error: diagramError } = await supabase
+        .from('diagrams')
+        .select('*')
+        .eq('id', linkData.diagram_id)
+        .single()
+      
+      if (diagramError) throw diagramError
+      
+      // Combine data
+      return {
+        ...linkData,
+        diagrams: diagramData,
+        profiles: { username: 'Utente Anonimo', avatar_url: null }
+      }
+    },
+
+    async incrementViewCount(linkId: string, visitorInfo: any) {
+      const { data, error } = await supabase
+        .from('public_share_links')
+        .update({ 
+          view_count: 1, // This will be incremented by a database function
+          last_accessed: new Date().toISOString(),
+          unique_visitors: visitorInfo // Will be managed by database function
+        })
+        .eq('id', linkId)
+        .select('*')
+        .single()
+      
+      if (error) throw error
+      return data
+    },
+
+    async revoke(linkId: string) {
+      const { data, error } = await supabase
+        .from('public_share_links')
+        .update({ is_active: false })
+        .eq('id', linkId)
+        .select('*')
+        .single()
+      
+      if (error) throw error
+      return data
+    }
+  },
+
+  // Sharing Activities (Audit Log)
+  sharingActivities: {
+    async getAll(diagramId: string) {
+      const { data, error } = await supabase
+        .from('sharing_activities')
+        .select(`
+          *,
+          user:user_id(username, avatar_url),
+          target_user:target_user_id(username, avatar_url)
+        `)
+        .eq('diagram_id', diagramId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      
+      if (error) throw error
+      return data
+    },
+
+    async log(activity: InsertTables<'sharing_activities'>) {
+      const { data, error } = await supabase.rpc('log_sharing_activity', {
+        p_diagram_id: activity.diagram_id,
+        p_activity_type: activity.activity_type,
+        p_target_user_id: activity.target_user_id,
+        p_old_permission: activity.old_permission,
+        p_new_permission: activity.new_permission,
+        p_metadata: activity.metadata
+      })
+      
+      if (error) throw error
+      return data
+    }
+  },
+
   // Helper functions for database management
   async getTableInfo(tableNumber: string) {
     const { data, error } = await supabase.rpc('get_table_info', {
