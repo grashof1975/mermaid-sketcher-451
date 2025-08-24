@@ -17,7 +17,7 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 
 ### Tabelle Backend Proposte
 
-#### TABLE_01: `diagrams` ✅ **IMPLEMENTATA**
+#### TABLE_01: `diagrams`
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | id | UUID | Identificatore unico del diagramma |
@@ -30,8 +30,6 @@ Il sistema è un editor avanzato per diagrammi Mermaid che combina editing manua
 | tags | TEXT[] | Array di tag per categorizzazione |
 | created_at | TIMESTAMP | Data di creazione |
 | updated_at | TIMESTAMP | Data ultima modifica |
-| **sharing_enabled** | **BOOLEAN** | **Abilitazione condivisione (default: true)** |
-| **default_share_permission** | **TEXT** | **Permesso di default per condivisioni (viewer/commenter/editor)** |
 
 **Operatività**: Salvataggio automatico, versioning, condivisione pubblica/privata, categorizzazione tramite tags.
 

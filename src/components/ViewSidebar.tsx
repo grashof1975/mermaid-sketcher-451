@@ -884,19 +884,22 @@ const ViewSidebar: React.FC<ViewSidebarProps> = ({
               <ChevronUp className="h-4 w-4" />
             </Button>
           )}
-          <Select value={sortOption} onValueChange={(value: SortOption) => setSortOption(value)}>
-            <SelectTrigger className="h-7 w-auto min-w-[100px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date-desc">Recenti</SelectItem>
-              <SelectItem value="date-asc">Vecchie</SelectItem>
-              <SelectItem value="name-asc">A-Z</SelectItem>
-              <SelectItem value="name-desc">Z-A</SelectItem>
-              <SelectItem value="zoom-desc">Zoom ↑</SelectItem>
-              <SelectItem value="zoom-asc">Zoom ↓</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-1">
+            <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
+            <Select value={sortOption} onValueChange={(value: SortOption) => setSortOption(value)}>
+              <SelectTrigger className="h-7 w-auto min-w-[100px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date-desc">Recenti</SelectItem>
+                <SelectItem value="date-asc">Vecchie</SelectItem>
+                <SelectItem value="name-asc">A-Z</SelectItem>
+                <SelectItem value="name-desc">Z-A</SelectItem>
+                <SelectItem value="zoom-desc">Zoom ↑</SelectItem>
+                <SelectItem value="zoom-asc">Zoom ↓</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 

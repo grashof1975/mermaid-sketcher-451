@@ -11,10 +11,7 @@
       "Bash(dir:*)"
     ],
     "deny": [],
-    "ask": [],
-    "additionalDirectories": [
-      "C:\\d C:\\CLAUDEcode2025\\mermaid-sketcher-451"
-    ]
+    "ask": []
   },
   "hooks": {
     "SessionStart": [
