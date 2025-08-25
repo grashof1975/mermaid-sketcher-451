@@ -83,8 +83,39 @@
 - **Hook Configuration** - `.claude/settings.local.json` con permessi e hook configurati
 - **Progress Tracking** - TodoWrite system per tracking tasks attraverso sessioni
 
-### **🔄 IN SVILUPPO (Aggiornato: 2025-08-23)**
-- **Sharing System Phase 3** - Email notifications + user lookup + audit trail + analytics
+### **🔄 IN SVILUPPO (Aggiornato: 2025-08-25)**
+
+#### **🏷️ Sistema Folder Tags - Phase 3B (In Completamento)** ✅ 95% COMPLETATO
+- **✅ Database Schema**: Campo `tags` aggiunto a `saved_views` (APPLY_010)
+- **✅ Folder Tag Mode**: Sistema toggle frecce ↓/↑ per modalità applicazione (APPLY_012)
+  - `apply_to_views` (↓): Tag si applica a cartella + tutte le viste
+  - `folder_only` (↑): Tag si applica solo alla cartella
+  - Toggle mutuamente esclusivo implementato e testato
+- **✅ Database Functions**: `toggle_folder_tag_mode()` e `apply_folder_tags_with_mode()` funzionanti
+- **🔄 Frontend Implementation**: Toggle UI frecce + integrazione con database functions
+- **⚠️ Performance Issue**: Sistema apertura/aggiornamento tab Cartelle molto lento - da ottimizzare post-funzionalità
+
+#### **🏷️ Sistema Tags Avanzato - Phase 3A (Seconda Priorità)**
+- **Filtro Tag Cumulativo** - Selezione multipla tag con filtri dinamici
+  - Clic su tag applica/rimuove filtro (toggle behavior)
+  - Visualizzazione tag attivi con indicator
+  - Combinazione AND/OR configurabile
+  - Reset rapido tutti i filtri
+
+#### **📁 Sistema Cartelle Viste - Funzionalità Base (Completate)**
+- **✅ Organizzazione Gerarchica Viste** - Sistema cartelle a 1 livello per viste
+- **✅ Creazione/eliminazione cartelle** - Drag & drop funzionante
+- **✅ Spostamento viste tra cartelle** - Drag & drop implementato
+- **✅ Icone distintive cartelle vs viste** - UI completa
+- **✅ Conteggio viste per cartella** - Display funzionante
+
+#### **📤 Sharing System Phase 3C (Seconda Priorità)**
+- **Email Notifications** - Sistema notifiche via email per inviti e attività
+- **User Lookup** - Ricerca utenti per email negli inviti
+- **Advanced Comments** - Sistema commenti per utenti anonimi su link pubblici
+- **Folder Sharing** - Condivisione intere cartelle di viste
+
+#### **⚙️ Sistema Automazione (Background)**
 - **Hook Tracking** - Sistema automatico aggiornamento PROJECT_OVERVIEW.md  
 - **Session Management** - Sistema logging sessioni sviluppo
 - **Advanced Screenshot Analysis** - Miglioramenti hook screenshot per debugging più efficace

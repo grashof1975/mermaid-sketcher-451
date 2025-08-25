@@ -1,0 +1,11 @@
+column_name,data_type
+updated_at,timestamp with time zone
+user_id,uuid
+id,uuid
+usage_count,integer
+filter_count,integer
+last_used,timestamp with time zone
+diagram_count,integer
+view_count,integer
+created_at,timestamp with time zone
+tag_name,character varying
