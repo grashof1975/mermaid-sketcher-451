@@ -42,6 +42,7 @@ interface SavedView {
   zoom_level: number;
   pan_x: number;
   pan_y: number;
+  created_at?: string;
 }
 
 interface Comment {
@@ -608,7 +609,7 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                                             name: view.name,
                                             zoom: view.zoom_level || 1,
                                             pan: { x: view.pan_x || 0, y: view.pan_y || 0 },
-                                            timestamp: new Date(view.created_at).getTime()
+                                            timestamp: new Date(view.created_at || Date.now()).getTime()
                                           };
                                           // First load the diagram, then load the view
                                           onLoadDiagram(diagram);

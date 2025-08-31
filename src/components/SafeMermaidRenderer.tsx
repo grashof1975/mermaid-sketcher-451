@@ -43,7 +43,6 @@ export const SafeMermaidRenderer: React.FC<SafeMermaidRendererProps> = ({
       htmlLabels: false,
       maxTextSize: 50000,
       maxEdges: 500,
-      maxMemorySize: 1000,
     })
   }, [])
 

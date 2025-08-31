@@ -1,4 +1,12 @@
 // Database Types Generated from Supabase Schema
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
 export interface Database {
   public: {
     Tables: {
@@ -90,6 +98,9 @@ export interface Database {
           sort_order: number
           created_at: string
           updated_at: string
+          tags: string[]
+          parent_folder_id: string | null
+          is_mother_view: boolean
         }
         Insert: {
           id?: string
@@ -105,6 +116,9 @@ export interface Database {
           sort_order?: number
           created_at?: string
           updated_at?: string
+          tags?: string[]
+          parent_folder_id?: string | null
+          is_mother_view?: boolean
         }
         Update: {
           id?: string
@@ -120,6 +134,9 @@ export interface Database {
           sort_order?: number
           created_at?: string
           updated_at?: string
+          tags?: string[]
+          parent_folder_id?: string | null
+          is_mother_view?: boolean
         }
       }
       comments: {
@@ -235,6 +252,7 @@ export interface Database {
           expires_at: string | null
           view_count: number
           created_at: string
+          owner_id: string
         }
         Insert: {
           id?: string
@@ -246,6 +264,7 @@ export interface Database {
           expires_at?: string | null
           view_count?: number
           created_at?: string
+          owner_id?: string
         }
         Update: {
           id?: string
@@ -356,6 +375,76 @@ export interface Database {
           success_rate?: number
           created_at?: string
           updated_at?: string
+        }
+      }
+      public_share_links: {
+        Row: {
+          id: string
+          diagram_id: string
+          shared_by: string
+          share_token: string
+          is_public: boolean
+          password_hash: string | null
+          expires_at: string | null
+          view_count: number
+          created_at: string
+          shared_with_id: string
+        }
+        Insert: {
+          id?: string
+          diagram_id: string
+          shared_by: string
+          share_token?: string
+          is_public?: boolean
+          password_hash?: string | null
+          expires_at?: string | null
+          view_count?: number
+          created_at?: string
+          shared_with_id?: string
+        }
+        Update: {
+          id?: string
+          diagram_id?: string
+          shared_by?: string
+          share_token?: string
+          is_public?: boolean
+          password_hash?: string | null
+          expires_at?: string | null
+          view_count?: number
+          created_at?: string
+          shared_with_id?: string
+        }
+      }
+      sharing_activities: {
+        Row: {
+          id: string
+          diagram_id: string
+          activity_type: string
+          target_user_id: string
+          old_permission: string
+          new_permission: string
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          diagram_id: string
+          activity_type: string
+          target_user_id: string
+          old_permission: string
+          new_permission: string
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          diagram_id?: string
+          activity_type?: string
+          target_user_id?: string
+          old_permission?: string
+          new_permission?: string
+          metadata?: Json
+          created_at?: string
         }
       }
     }

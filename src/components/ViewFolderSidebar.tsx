@@ -721,8 +721,8 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
 
           if (!sharesError && sharedUsers) {
             itemWithViews.shared_users = sharedUsers.map(share => ({
-              id: share.profiles?.id || '',
-              username: share.profiles?.username || 'Utente sconosciuto',
+              id: share.profiles?.[0]?.id || '',
+              username: share.profiles?.[0]?.username || 'Utente sconosciuto',
               permission_level: share.permission_level,
               status: share.status
             }));

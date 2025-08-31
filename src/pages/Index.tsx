@@ -1648,8 +1648,11 @@ const Index = () => {
           onQuickSaveComment={() => setShowQuickCommentModal(true)}
           onSetZoomCenter={handleStartZoomCenterSelection}
           onCreateMotherView={handleCreateMotherView}
-          onSelectDiagram={loadDiagram}
-          onOpenDiagram={loadDiagram}
+          onSelectDiagram={(diagram) => { loadDiagram(diagram); }}
+          onOpenDiagram={(diagramId) => { 
+            const diagram = diagrams.find(d => d.id === diagramId);
+            if (diagram) loadDiagram(diagram);
+          }}
           nodeSelectionShortcut={nodeSelectionShortcut}
           onNodeSelectionShortcutChange={handleNodeSelectionShortcutChange}
           viewNameTemplate={viewNameTemplate}
