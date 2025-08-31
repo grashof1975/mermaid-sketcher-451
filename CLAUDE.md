@@ -254,4 +254,190 @@ pause
 
 ---
 
+## 🔧 **SISTEMA STANDARDIZZATO FIX LOVABLE**
+
+**📊 Basato su Successo Branch 20250831d_ - Procedura Validata**
+
+### **🎯 Problema Pattern Ricorrenti Lovable:**
+1. **CommonJS/ESM Conflicts** (es. `./constants?commonjs-external`)
+2. **Blank Screen** (Auth/Loading states)
+3. **Build Failures** (Dependencies incompatibili)
+4. **Module Resolution** (Import diretti problematici)
+
+### **✅ Workflow Standardizzato Fix Lovable:**
+
+#### **STEP 1: Analisi Errore**
+```bash
+# Identifica categoria errore:
+# - CommonJS resolution? → Apply Mermaid fix pattern
+# - Blank screen? → Apply Auth/Loading fix pattern  
+# - Build failure? → Apply Dependencies fix pattern
+```
+
+#### **STEP 2: Pre-Check Dependencies**
+```bash
+# Esegui controllo preventivo:
+.\docs\development\tools\pre-commit-lovable-check.bat
+
+# Verifica pattern problematici:
+- Mermaid version ≥ 11.x → Downgrade a 10.9.1
+- lucide-react < 0.542.0 → Update a 0.542.0+
+- vite < 7.x → Check compatibility
+```
+
+#### **STEP 3: Apply Standard Fixes (Pattern Validati)**
+
+**🎨 Mermaid CommonJS Fix (20250831d_ Success Pattern):**
+```bash
+# package.json:
+"mermaid": "^10.9.1"  # NOT 11.x
+
+# vite.config.ts - Configurazione Testata:
+optimizeDeps: {
+  include: ['mermaid', 'react', 'react-dom'],
+  exclude: ['mermaid/dist/mermaid.esm.mjs'],
+  force: true
+},
+build: {
+  rollupOptions: {
+    output: {
+      manualChunks: { mermaid: ['mermaid'] }
+    },
+    external: (id) => {
+      if (id.includes('?commonjs-external')) return false;
+      return false;
+    }
+  },
+  commonjsOptions: {
+    include: [/node_modules/, /mermaid/],
+    requireReturnsDefault: 'auto'
+  }
+}
+
+# Components - Dynamic Import Pattern:
+// ❌ NON fare:
+import mermaid from 'mermaid'
+
+// ✅ Pattern corretto:
+const [mermaidModule, setMermaidModule] = useState(null);
+useEffect(() => {
+  const initMermaid = async () => {
+    const mermaidModule = await import('mermaid');
+    const mermaid = mermaidModule.default || mermaidModule;
+    setMermaidModule(mermaid);
+  };
+  initMermaid();
+}, []);
+```
+
+**🔐 Blank Screen Fix (20250831c_ Success Pattern):**
+```typescript
+// AuthProvider - Safety timeout:
+useEffect(() => {
+  // ... auth logic
+  
+  const timeoutId = setTimeout(() => {
+    console.warn('Auth timeout - force completing');
+    setLoading(false);
+  }, 10000);
+
+  return () => clearTimeout(timeoutId);
+}, []);
+
+// Index.tsx - Robust Loading:
+if (authLoading) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div>Loading...</div>
+      {process.env.NODE_ENV === 'development' && (
+        <div>Debug: {JSON.stringify({authLoading, hasUser: !!user})}</div>
+      )}
+    </div>
+  );
+}
+```
+
+#### **STEP 4: Branch Nomenclatura Standardizzata:**
+```bash
+# Pattern nome branch per fix Lovable:
+YYYYMMDD[a-z]_ (es. 20250831d_)
+
+# Sequenza tipica:
+- 20250831a_: Base state
+- 20250831b_: + Standard Lovable fixes  
+- 20250831c_: + Blank screen fixes
+- 20250831d_: + CommonJS/Module fixes
+```
+
+#### **STEP 5: Commit Message Template:**
+```bash
+git commit -m "$(cat <<'EOF'
+20250831d_ - [CATEGORY] Lovable Compatibility Fix
+
+🔧 [Primary Fix Category]:
+- [Specific changes made]
+- [Problem solved]
+
+⚡ [Secondary Improvements]:
+- [Supporting changes]
+- [Configuration updates]
+
+✅ Lovable Build Compatibility:
+- Tested for Lovable build system
+- Resolves [specific error]
+- Compatible with dev/prod modes
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
+```
+
+### **🚀 Tools Automatici Disponibili:**
+
+```bash
+# Pre-Check Lovable Compatibility:
+.\docs\development\tools\pre-commit-lovable-check.bat
+
+# Auto-Fix Common Issues:  
+.\docs\development\tools\apply-lovable-standard-fixes.bat  # TODO: Create
+
+# Sync Lovable Updates:
+.\github-sync\lovable-sync-auto.bat [branch-name]
+```
+
+### **📋 Success Patterns Library:**
+
+**✅ TESTATO - Pattern 20250831d_ (Mermaid CommonJS):**
+- Downgrade mermaid 11.x → 10.9.1
+- Dynamic imports instead of static
+- ManualChunks separation  
+- CommonJS requireReturnsDefault: 'auto'
+
+**✅ TESTATO - Pattern 20250831c_ (Blank Screen):**
+- AuthProvider timeout safety (10s)
+- Robust loading states with fallbacks
+- Debug info in development mode
+- Comprehensive console logging
+
+**✅ TESTATO - Pattern 20250831b_ (Standard Fixes):**
+- lucide-react ≥ 0.542.0
+- shared_by instead of created_by
+- Database types completions
+- Error handling enhancements
+
+### **⚡ Quick Reference:**
+
+**🔴 Errore CommonJS Resolution:**
+→ Apply Pattern 20250831d_ (Mermaid fix)
+
+**🔴 Blank Screen Lovable:**  
+→ Apply Pattern 20250831c_ (Auth loading fix)
+
+**🔴 Build Dependencies Issues:**
+→ Apply Pattern 20250831b_ (Standard fixes)
+
+---
+
 **⚠️ IMPORTANTE**: Questo file è il **sistema nervoso centrale** della documentazione. Se Claude dimentica procedure o perde contesto, SEMPRE tornare qui per ricaricare le regole operative.
