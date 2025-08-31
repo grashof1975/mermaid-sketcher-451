@@ -77,7 +77,14 @@ interface PublicLink {
 }
 
 const Index = () => {
+  console.log('📄 Index: Component rendering...');
   const { user, loading: authLoading } = useAuth();
+  
+  console.log('📄 Index: Auth state:', { 
+    hasUser: !!user, 
+    userId: user?.id, 
+    authLoading 
+  });
   
   // Original state (kept identical)
   const [code, setCode] = useState<string>(DEFAULT_DIAGRAM);
@@ -1375,6 +1382,35 @@ const Index = () => {
       previewRef.current.setCenterPoint(center.x, center.y);
     }
   }, []);
+
+  // Auth loading state with comprehensive debugging
+  if (authLoading) {
+    console.log('📄 Index: Showing auth loading screen...');
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+          <div className="text-lg font-medium text-gray-700 dark:text-gray-300">
+            Loading Mermaid Sketcher...
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Initializing authentication
+          </div>
+          {/* Debug info in development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-8 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs text-left max-w-md">
+              <div className="font-mono">Debug Info:</div>
+              <div>Auth Loading: {String(authLoading)}</div>
+              <div>User: {user ? `✅ ${user.id}` : '❌ null'}</div>
+              <div>Timestamp: {new Date().toLocaleTimeString()}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  console.log('📄 Index: Rendering main interface...');
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-800 animate-fade-in">

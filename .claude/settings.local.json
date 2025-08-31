@@ -43,7 +43,8 @@
       "Bash(npm run lint)",
       "Bash(rm:*)",
       "Bash(git fetch:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(ping:*)"
     ],
     "deny": [],
     "ask": []
