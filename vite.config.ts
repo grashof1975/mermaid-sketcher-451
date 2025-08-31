@@ -30,8 +30,15 @@ export default defineConfig(({ mode }) => ({
     exclude: []
   },
   build: {
+    rollupOptions: {
+      external: [],
+      output: {
+        manualChunks: undefined
+      }
+    },
     commonjsOptions: {
-      include: [/node_modules/]
+      include: [/node_modules/],
+      transformMixedEsModules: true
     }
   }
 }));
