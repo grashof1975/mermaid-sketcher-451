@@ -265,6 +265,11 @@ export interface Database {
           view_count?: number
           created_at?: string
           owner_id?: string
+          shared_with_id?: string
+          invited_by?: string
+          permission_level?: string
+          invitation_message?: string
+          status?: string
         }
         Update: {
           id?: string

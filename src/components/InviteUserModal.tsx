@@ -179,6 +179,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
       // 5. Crea record di condivisione diagramma usando le API corrette
       const shareData = await db.diagramShares.invite({
         diagram_id: diagramId,
+        shared_by: user.id,  // Add the required shared_by field
         owner_id: user.id,
         shared_with_id: finalProfile.id,
         invited_by: user.id,

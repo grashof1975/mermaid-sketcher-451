@@ -134,7 +134,8 @@ const SortableItem: React.FC<{
   availableFolders?: FolderItem[];
   children?: React.ReactNode;
   handleAutoSwitchToViews?: () => void;
-}> = ({ item, level, index, isExpanded, isSelected, onToggleExpand, onEdit, onDelete, onSelect, onOpenDiagram, onLoadView, onMoveToFolder, onTagsChange, onBulkTagOperation, getAllFolderTags, availableFolders = [], children, handleAutoSwitchToViews }) => {
+  setShareViewModal?: (state: { isOpen: boolean; viewId: string; viewName: string }) => void;
+}> = ({ item, level, index, isExpanded, isSelected, onToggleExpand, onEdit, onDelete, onSelect, onOpenDiagram, onLoadView, onMoveToFolder, onTagsChange, onBulkTagOperation, getAllFolderTags, availableFolders = [], children, handleAutoSwitchToViews, setShareViewModal }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(item.name);
   
@@ -458,7 +459,7 @@ const SortableItem: React.FC<{
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setShareViewModal({
+                  setShareViewModal?.({
                     isOpen: true,
                     viewId: item.id,
                     viewName: item.name
@@ -1307,7 +1308,7 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
   };
 
   // Render item tree recursively
-  const renderItems = (itemList: FolderItem[], level = 0, startIndex = 0, itemsByParent: Record<string, FolderItem[]> = {}, availableFolders: FolderItem[] = []): React.ReactNode => {
+  const renderItems = (itemList: FolderItem[], level = 0, startIndex = 0, itemsByParent: Record<string, FolderItem[]> = {}, availableFolders: FolderItem[] = [], setShareViewModalProp?: (state: { isOpen: boolean; viewId: string; viewName: string }) => void): React.ReactNode => {
     let currentIndex = startIndex;
 
     return itemList.map(item => {
@@ -1342,6 +1343,7 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
           getAllFolderTags={getAllFolderTags}
           availableFolders={availableFolders}
           handleAutoSwitchToViews={handleAutoSwitchToViews}
+          setShareViewModal={setShareViewModalProp}
         >
           {children.length > 0 && isExpanded && (
             <div className="ml-4">
@@ -1371,10 +1373,11 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
                     getAllFolderTags={getAllFolderTags}
                     availableFolders={availableFolders}
                     handleAutoSwitchToViews={handleAutoSwitchToViews}
+                    setShareViewModal={setShareViewModal}
                   >
                     {grandChildren.length > 0 && childIsExpanded && (
                       <div className="ml-4">
-                        {renderItems(grandChildren, level + 2, currentIndex, itemsByParent, availableFolders)}
+                        {renderItems(grandChildren, level + 2, currentIndex, itemsByParent, availableFolders, setShareViewModalProp)}
                       </div>
                     )}
                   </SortableItem>
@@ -1517,7 +1520,7 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-1">
-                  {renderItems(rootItems, 0, 0, itemsByParent, rootItems.filter(item => item.is_folder))}
+                  {renderItems(rootItems, 0, 0, itemsByParent, rootItems.filter(item => item.is_folder), setShareViewModal)}
                 </div>
               </SortableContext>
             </DndContext>

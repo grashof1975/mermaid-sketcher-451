@@ -64,7 +64,7 @@ export const CreatePublicLinkModal: React.FC<CreatePublicLinkModalProps> = ({
       // Add user ID to linkData
       const linkDataWithUser = {
         ...linkData,
-        created_by: user.id
+        shared_by: user.id  // Changed from created_by to shared_by
       };
       
       console.log('Creating public link:', linkDataWithUser);
