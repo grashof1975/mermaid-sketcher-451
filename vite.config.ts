@@ -19,4 +19,22 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: ['mermaid'],
+    exclude: []
+  },
+  build: {
+    rollupOptions: {
+      external: (id) => {
+        if (id.includes('?commonjs-external')) {
+          return false;
+        }
+        return false;
+      }
+    },
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true
+    }
+  }
 }));
