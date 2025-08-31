@@ -26,15 +26,20 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       external: (id) => {
-        if (id.includes('?commonjs-external')) {
-          return false;
-        }
+        // Don't externalize any modules
         return false;
+      },
+      output: {
+        manualChunks: undefined
       }
     },
     commonjsOptions: {
       include: [/node_modules/],
-      transformMixedEsModules: true
+      transformMixedEsModules: true,
+      requireReturnsDefault: 'auto'
     }
+  },
+  define: {
+    global: 'globalThis',
   }
 }));
