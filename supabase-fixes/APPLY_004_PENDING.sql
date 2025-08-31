@@ -3,7 +3,7 @@
 -- Addresses: Comments become orphaned when views are deleted
 
 -- Step 1: Check current foreign key constraints
-SELECT 'Current foreign key constraints on comments:' as info;
+SELECT 'APPLY_004_RESULT - Current foreign key constraints on comments:' as info;
 SELECT 
     tc.constraint_name, 
     tc.table_name, 
@@ -22,18 +22,18 @@ WHERE tc.constraint_type = 'FOREIGN KEY'
     AND tc.table_schema = 'public';
 
 -- Step 2: Drop existing foreign key constraint for linked_view_id
-SELECT 'Dropping existing foreign key constraint...' as info;
+SELECT 'APPLY_004_RESULT - Dropping existing foreign key constraint...' as info;
 ALTER TABLE public.comments 
 DROP CONSTRAINT IF EXISTS comments_linked_view_id_fkey;
 
 -- Step 3: Add new foreign key constraint with CASCADE DELETE
-SELECT 'Adding CASCADE DELETE constraint...' as info;
+SELECT 'APPLY_004_RESULT - Adding CASCADE DELETE constraint...' as info;
 ALTER TABLE public.comments 
 ADD CONSTRAINT comments_linked_view_id_fkey 
 FOREIGN KEY (linked_view_id) REFERENCES public.saved_views(id) ON DELETE CASCADE;
 
 -- Step 4: Verify the new constraint
-SELECT 'Verifying new constraint:' as info;
+SELECT 'APPLY_004_RESULT - Verifying new constraint:' as info;
 SELECT 
     tc.constraint_name, 
     tc.table_name, 
@@ -62,4 +62,4 @@ WHERE tc.constraint_type = 'FOREIGN KEY'
 -- 3. Deleting the view
 -- 4. Verifying the comment is auto-deleted
 
-SELECT 'APPLY_004 completed. Comments will now be auto-deleted when views are deleted.' as result;
+SELECT 'APPLY_004_RESULT - APPLY_004 completed. Comments will now be auto-deleted when views are deleted.' as result;

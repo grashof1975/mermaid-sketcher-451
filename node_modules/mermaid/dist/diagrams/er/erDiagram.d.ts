@@ -13,9 +13,9 @@ export declare const diagram: {
             IDENTIFYING: string;
         };
         getConfig: () => import("../../config.type.js").ErDiagramConfig | undefined;
-        addEntity: (name: any, alias?: undefined) => any;
+        addEntity: (name: string, alias?: string | undefined) => any;
         addAttributes: (entityName: any, attribs: any) => void;
-        getEntities: () => {};
+        getEntities: () => Map<any, any>;
         addRelationship: (entA: any, rolA: any, entB: any, rSpec: any) => void;
         getRelationships: () => any[];
         clear: () => void;

@@ -23,6 +23,9 @@ export type UpdateTables<T extends keyof Database['public']['Tables']> = Databas
 
 // Common database operations with proper typing
 export const db = {
+  // Export supabase client for direct RPC calls
+  supabase,
+  
   // Profiles
   profiles: {
     async get(userId: string) {
@@ -106,10 +109,47 @@ export const db = {
         .eq('id', id)
       
       if (error) throw error
+    },
+
+    // Get diagrams shared with the current user - FIXED: No complex JOINs
+    async getSharedWithUser(userId: string) {
+      // Step 1: Get basic diagram shares
+      const { data: sharesData, error: sharesError } = await supabase
+        .from('diagram_shares')
+        .select('*')
+        .eq('shared_with_id', userId)
+        .eq('status', 'accepted')
+        .order('created_at', { ascending: false })
+      
+      if (sharesError) throw sharesError
+      if (!sharesData || sharesData.length === 0) return []
+
+      // Step 2: Get diagram details separately
+      const diagramIds = sharesData.map(share => share.diagram_id)
+      const { data: diagramsData, error: diagramsError } = await supabase
+        .from('diagrams')
+        .select('id, title, mermaid_code, description, is_public, version, tags, created_at, updated_at, user_id, sharing_enabled, default_share_permission')
+        .in('id', diagramIds)
+      
+      if (diagramsError) throw diagramsError
+
+      // Step 3: Combine data safely
+      return sharesData.map(share => {
+        const diagram = diagramsData?.find(d => d.id === share.diagram_id)
+        if (!diagram) return null
+        
+        return {
+          ...diagram,
+          shared_permission: share.permission_level,
+          shared_at: share.responded_at || share.created_at,
+          is_shared: true,
+          share_id: share.id
+        }
+      }).filter(Boolean) || []
     }
   },
 
-  // Saved Views
+  // Saved Views & Folders
   savedViews: {
     async getAll(diagramId: string, userId: string) {
       const { data, error } = await supabase
@@ -117,7 +157,7 @@ export const db = {
         .select()
         .eq('diagram_id', diagramId)
         .eq('user_id', userId)
-        .order('sort_order', { ascending: true })
+        .order('folder_sort_order', { ascending: true })
       
       if (error) throw error
       return data
@@ -135,15 +175,13 @@ export const db = {
     },
 
     async update(id: string, updates: UpdateTables<'saved_views'>) {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('saved_views')
         .update(updates)
         .eq('id', id)
-        .select()
-        .single()
       
       if (error) throw error
-      return data
+      return true
     },
 
     async delete(id: string) {
@@ -153,6 +191,74 @@ export const db = {
         .eq('id', id)
       
       if (error) throw error
+    },
+
+    // Folder-specific operations
+    async createFolder(name: string, userId: string, icon?: string, color?: string) {
+      const { data, error } = await supabase
+        .from('saved_views')
+        .insert({
+          name,
+          user_id: userId,
+          diagram_id: null, // Folders are not tied to specific diagrams
+          is_folder: true,
+          folder_icon: icon || 'folder',
+          folder_color: color,
+          zoom_level: 1, // Default values for required fields
+          folder_sort_order: 0
+        })
+        .select()
+        .single()
+      
+      if (error) throw error
+      return data
+    },
+
+    async getFoldersWithViews(userId: string) {
+      const { data, error } = await supabase.rpc('get_folder_views', {
+        p_folder_id: null, // Get all folders for user
+        p_user_id: userId
+      })
+      
+      if (error) throw error
+      return data
+    },
+
+    async moveViewToFolder(viewId: string, folderId: string, userId: string, sortOrder?: number) {
+      const { data, error } = await supabase.rpc('move_view_to_folder', {
+        p_view_id: viewId,
+        p_target_folder_id: folderId,
+        p_user_id: userId,
+        p_sort_order: sortOrder
+      })
+      
+      if (error) throw error
+      return data
+    },
+
+    async getAllFolders(userId: string) {
+      const { data, error } = await supabase
+        .from('saved_views')
+        .select()
+        .eq('user_id', userId)
+        .eq('is_folder', true)
+        .order('folder_sort_order', { ascending: true })
+      
+      if (error) throw error
+      return data
+    },
+
+    async getViewsInFolder(folderId: string, userId: string) {
+      const { data, error } = await supabase
+        .from('saved_views')
+        .select()
+        .eq('user_id', userId)
+        .eq('parent_folder_id', folderId)
+        .eq('is_folder', false)
+        .order('folder_sort_order', { ascending: true })
+      
+      if (error) throw error
+      return data
     }
   },
 
@@ -266,17 +372,23 @@ export const db = {
     },
 
     async respondToInvite(shareId: string, action: 'accepted' | 'declined') {
+      console.log('🔄 DEBUG: Responding to invite:', { shareId, action });
+      
       const { data, error } = await supabase
         .from('diagram_shares')
         .update({ 
-          status: action,
-          responded_at: new Date().toISOString()
+          status: action
         })
         .eq('id', shareId)
         .select('*')
         .single()
       
-      if (error) throw error
+      console.log('📊 DEBUG: Respond result:', { data, error });
+      
+      if (error) {
+        console.error('❌ DEBUG: Error responding to invite:', error);
+        throw error
+      }
       return data
     },
 
@@ -309,6 +421,46 @@ export const db = {
       
       if (error) throw error
       return data
+    },
+
+    // Get pending invitations for current user using RPC function
+    async getPendingInvitations(userId: string) {
+      const { data, error } = await supabase.rpc('get_pending_invitations_with_details', {
+        p_user_id: userId
+      })
+      
+      if (error) {
+        console.error('Error loading pending invitations:', error);
+        throw error;
+      }
+      
+      if (!data || data.length === 0) return []
+      
+      // Transform data to match expected interface
+      return data.map((item: any) => ({
+        id: item.invitation_id,
+        diagram_id: item.diagram_id,
+        permission_level: item.permission_level,
+        invitation_message: item.invitation_message,
+        created_at: item.created_at,
+        expires_at: item.expires_at,
+        diagrams: {
+          id: item.diagram_id,
+          title: item.diagram_title,
+          description: item.diagram_description,
+          user_id: item.owner_id
+        },
+        owner: {
+          email: item.owner_email,
+          username: item.owner_username || 'Unknown',
+          avatar_url: item.owner_avatar_url
+        },
+        invited_by: {
+          email: item.invited_by_email,
+          username: item.invited_by_username || 'Unknown', 
+          avatar_url: item.invited_by_avatar_url
+        }
+      }))
     }
   },
 

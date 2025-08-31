@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 interface PreviewProps {
   code: string;
   className?: string;
+  title?: string;
   onViewChange?: (zoom: number, pan: { x: number; y: number }) => void;
   onComponentSelect?: (componentId: string, bounds: { x: number; y: number; width: number; height: number }, nodeText: string) => void;
   nodeSelectionShortcut?: string;
@@ -22,7 +23,7 @@ export interface PreviewRef {
   setCenterPoint: (x: number, y: number) => void;
 }
 
-const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewChange, onComponentSelect, nodeSelectionShortcut = 'ctrl+click' }, ref) => {
+const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, title, onViewChange, onComponentSelect, nodeSelectionShortcut = 'ctrl+click' }, ref) => {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -553,6 +554,15 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, onViewC
 
   return (
     <div className={cn("h-full w-full overflow-hidden", className)}>
+      {/* Diagram Title */}
+      {title && (
+        <div className="absolute top-4 left-4 z-30 bg-background/95 backdrop-blur-sm border rounded-lg px-3 py-2 shadow-lg pointer-events-none">
+          <h3 className="text-sm font-semibold text-foreground truncate" style={{ maxWidth: '200px' }}>
+            {title}
+          </h3>
+        </div>
+      )}
+      
       <div 
         ref={containerRef} 
         className="diagram-container min-h-full flex items-center justify-center relative cursor-grab active:cursor-grabbing"

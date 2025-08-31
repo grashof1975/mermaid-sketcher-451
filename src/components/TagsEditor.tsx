@@ -9,17 +9,25 @@ interface TagsEditorProps {
   onChange: (tags: string[]) => void;
   maxTags?: number;
   availableTags?: string[];
+  // Filter props
+  activeTags?: string[];
+  onToggleFilter?: (tagName: string) => void;
+  showFilterToggle?: boolean;
 }
 
 export const TagsEditor: React.FC<TagsEditorProps> = ({ 
   tags, 
   onChange, 
   maxTags = 5,
-  availableTags = []
+  availableTags = [],
+  activeTags = [],
+  onToggleFilter,
+  showFilterToggle = false
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -51,14 +59,32 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      addTag();
+      if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < filteredSuggestions.length) {
+        // Select the highlighted suggestion
+        selectSuggestion(filteredSuggestions[selectedSuggestionIndex]);
+      } else {
+        // Add the current typed tag
+        addTag();
+      }
     } else if (e.key === 'Escape') {
       setIsEditing(false);
       setNewTag('');
       setShowSuggestions(false);
-    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      setSelectedSuggestionIndex(-1);
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      // Handle arrow navigation for suggestions if needed
+      if (showSuggestions && filteredSuggestions.length > 0) {
+        setSelectedSuggestionIndex(prev => 
+          prev < filteredSuggestions.length - 1 ? prev + 1 : 0
+        );
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (showSuggestions && filteredSuggestions.length > 0) {
+        setSelectedSuggestionIndex(prev => 
+          prev > 0 ? prev - 1 : filteredSuggestions.length - 1
+        );
+      }
     }
   };
 
@@ -70,14 +96,39 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
       tag.toLowerCase() !== newTag.trim().toLowerCase()
     )
     .slice(0, 5);
+    
+  // Debug log
+  if (newTag.length > 0) {
+    console.log('DEBUG TagsEditor:', { 
+      newTag, 
+      availableTagsCount: availableTags.length, 
+      filteredSuggestions,
+      showSuggestions,
+      isEditing
+    });
+  }
 
   const selectSuggestion = (suggestion: string) => {
     if (!tags.includes(suggestion) && tags.length < maxTags) {
-      onChange([...tags, suggestion]);
+      const newTags = [...tags, suggestion];
+      onChange(newTags);
       setNewTag('');
       setShowSuggestions(false);
+      setSelectedSuggestionIndex(-1);
       setIsEditing(false);
     }
+  };
+
+  const handleTagClick = (tagName: string, e: React.MouseEvent) => {
+    if (showFilterToggle && onToggleFilter) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToggleFilter(tagName);
+    }
+  };
+
+  const isTagActive = (tagName: string) => {
+    return showFilterToggle && activeTags.includes(tagName);
   };
 
   return (
@@ -85,18 +136,25 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
       {tags.map((tag, index) => (
         <Badge 
           key={index} 
-          variant="secondary" 
-          className="text-xs px-2 py-0.5 group hover:bg-destructive/20"
+          variant={isTagActive(tag) ? "default" : "secondary"}
+          className={`text-xs px-2 py-0.5 group transition-colors ${
+            showFilterToggle 
+              ? 'cursor-pointer hover:bg-primary/20' 
+              : 'hover:bg-destructive/20'
+          } ${isTagActive(tag) ? 'bg-primary text-primary-foreground' : ''}`}
+          onClick={(e) => handleTagClick(tag, e)}
         >
           {tag}
-          <Button
-            onClick={() => removeTag(tag)}
-            size="sm"
-            variant="ghost"
-            className="h-auto p-0 ml-1 text-xs opacity-0 group-hover:opacity-100 hover:bg-transparent"
-          >
-            <X className="h-3 w-3" />
-          </Button>
+          {!showFilterToggle && (
+            <Button
+              onClick={() => removeTag(tag)}
+              size="sm"
+              variant="ghost"
+              className="h-auto p-0 ml-1 text-xs opacity-0 group-hover:opacity-100 hover:bg-transparent"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
         </Badge>
       ))}
       
@@ -108,6 +166,7 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
             onChange={(e) => {
               setNewTag(e.target.value);
               setShowSuggestions(e.target.value.length > 0);
+              setSelectedSuggestionIndex(-1); // Reset selection when typing
             }}
             onKeyDown={handleKeyPress}
             onBlur={() => {
@@ -118,7 +177,10 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
                 setShowSuggestions(false);
               }, 200);
             }}
-            onFocus={() => setShowSuggestions(newTag.length > 0)}
+            onFocus={() => {
+              setShowSuggestions(newTag.length > 0);
+              setSelectedSuggestionIndex(-1);
+            }}
             placeholder="Nuovo tag..."
             className="h-6 text-xs px-2 w-24"
             maxLength={20}
@@ -127,13 +189,27 @@ export const TagsEditor: React.FC<TagsEditorProps> = ({
           {/* Suggestions dropdown */}
           {showSuggestions && filteredSuggestions.length > 0 && (
             <div className="absolute top-full left-0 mt-1 w-32 bg-popover border rounded-md shadow-md z-50">
-              {filteredSuggestions.map(suggestion => (
+              {filteredSuggestions.map((suggestion, index) => (
                 <button
                   key={suggestion}
-                  onClick={() => selectSuggestion(suggestion)}
-                  className="w-full text-left px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground transition-colors"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectSuggestion(suggestion);
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  className={`w-full text-left px-2 py-1 text-xs transition-colors ${
+                    selectedSuggestionIndex === index
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-accent hover:text-accent-foreground'
+                  }`}
                 >
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge 
+                    variant={selectedSuggestionIndex === index ? "default" : "secondary"} 
+                    className="text-xs"
+                  >
                     {suggestion}
                   </Badge>
                 </button>

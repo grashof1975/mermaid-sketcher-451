@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Save, MessageSquare, X } from 'lucide-react';
+import { Save, MessageSquare, X, GripVertical } from 'lucide-react';
 
 interface QuickCommentModalProps {
   isOpen: boolean;
@@ -29,6 +28,13 @@ export const QuickCommentModal: React.FC<QuickCommentModalProps> = ({
 }) => {
   const [viewName, setViewName] = useState('');
   const [comment, setComment] = useState('');
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [size, setSize] = useState({ width: 400, height: 300 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const barRef = useRef<HTMLDivElement>(null);
 
   // Function to get the next incremental identifier
   const getNextIdentifier = (template: string, existingViews: Array<{ name: string; id: string }>) => {
@@ -60,6 +66,49 @@ export const QuickCommentModal: React.FC<QuickCommentModalProps> = ({
     
     return `${prefix}${paddedNumber}`;
   };
+
+  // Load position and size from localStorage
+  useEffect(() => {
+    const savedPosition = localStorage.getItem('quickCommentModal-position');
+    const savedSize = localStorage.getItem('quickCommentModal-size');
+    
+    if (savedPosition) {
+      try {
+        const parsed = JSON.parse(savedPosition);
+        setPosition(parsed);
+      } catch (e) {
+        // Default center position if parsing fails
+        setPosition({ x: window.innerWidth / 2 - 200, y: window.innerHeight / 2 - 150 });
+      }
+    } else {
+      // Default center position
+      const defaultX = Math.max(window.innerWidth / 2 - 200, 0);
+      const defaultY = Math.max(window.innerHeight / 2 - 150, 0);
+      setPosition({ x: defaultX, y: defaultY });
+    }
+
+    if (savedSize) {
+      try {
+        const parsed = JSON.parse(savedSize);
+        setSize(parsed);
+      } catch (e) {
+        // Keep default size if parsing fails
+      }
+    }
+  }, [isOpen]);
+
+  // Save position and size to localStorage
+  useEffect(() => {
+    if (isOpen) {
+      localStorage.setItem('quickCommentModal-position', JSON.stringify(position));
+    }
+  }, [position, isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      localStorage.setItem('quickCommentModal-size', JSON.stringify(size));
+    }
+  }, [size, isOpen]);
 
   // Initialize comment with selected component text when modal opens
   useEffect(() => {
@@ -93,23 +142,142 @@ export const QuickCommentModal: React.FC<QuickCommentModalProps> = ({
     }
   };
 
+  // Drag handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!barRef.current) return;
+    
+    setIsDragging(true);
+    const rect = barRef.current.getBoundingClientRect();
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return;
+    
+    const newX = e.clientX - dragOffset.x;
+    const newY = e.clientY - dragOffset.y;
+    
+    // Keep within screen bounds
+    const maxX = window.innerWidth - size.width;
+    const maxY = window.innerHeight - size.height;
+    
+    setPosition({
+      x: Math.max(0, Math.min(newX, maxX)),
+      y: Math.max(0, Math.min(newY, maxY))
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setIsResizing(false);
+  };
+
+  // Resize handlers
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent drag from starting
+    setIsResizing(true);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: size.width,
+      height: size.height
+    });
+  };
+
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!isResizing) return;
+
+    const deltaX = e.clientX - resizeStart.x;
+    const deltaY = e.clientY - resizeStart.y;
+
+    // Resize from bottom-right corner
+    const newWidth = Math.max(300, resizeStart.width + deltaX); // Min width 300px
+    const newHeight = Math.max(200, resizeStart.height + deltaY); // Min height 200px
+    
+    // Keep within screen bounds
+    const maxWidth = window.innerWidth - position.x;
+    const maxHeight = window.innerHeight - position.y;
+    
+    setSize({
+      width: Math.min(newWidth, maxWidth),
+      height: Math.min(newHeight, maxHeight)
+    });
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset]);
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleResizeMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, resizeStart]);
+
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md" onKeyDown={handleKeyPress}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Save className="h-5 w-5" />
-            Salva Vista
-          </DialogTitle>
-          <DialogDescription>
+    <div 
+      ref={barRef}
+      className="fixed z-30"
+      style={{ 
+        left: `${position.x}px`, 
+        top: `${position.y}px`,
+        width: `${size.width}px`,
+        height: `${size.height}px`,
+        cursor: isDragging ? 'grabbing' : 'auto'
+      }}
+      onKeyDown={handleKeyPress}
+      tabIndex={-1}
+    >
+      <div className="bg-background/95 backdrop-blur-sm border rounded-lg shadow-lg h-full flex flex-col">
+        {/* Header - Draggable area */}
+        <div 
+          className="flex items-center justify-between p-3 border-b cursor-grab active:cursor-grabbing"
+          onMouseDown={handleMouseDown}
+        >
+          <div className="flex items-center gap-2">
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+            <MessageSquare className="h-4 w-4" />
+            <span className="text-sm font-semibold">Salva Vista</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="h-6 w-6 p-0"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+        
+        {/* Content - Scrollable */}
+        <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+          {/* Description */}
+          <div className="text-xs text-muted-foreground">
             {selectedComponentText 
               ? `Salva una vista focalizzata sul componente "${selectedComponentText}" con commento opzionale.`
               : "Salva la vista corrente del diagramma con commento opzionale."
             }
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="space-y-4">
+          </div>
+
           {/* Current view info */}
           <div className="text-xs text-muted-foreground bg-muted/30 p-2 rounded">
             <strong>Vista corrente:</strong> Zoom {currentZoom.toFixed(1)}x, 
@@ -141,12 +309,14 @@ export const QuickCommentModal: React.FC<QuickCommentModalProps> = ({
               placeholder="Descrivi cosa è interessante in questa vista (opzionale)..."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              className="text-sm min-h-20 resize-none"
+              className="text-sm min-h-16 resize-none"
               rows={3}
             />
           </div>
+        </div>
 
-          {/* Actions */}
+        {/* Footer - Actions */}
+        <div className="p-3 border-t">
           <div className="flex items-center justify-between gap-2">
             <div className="text-xs text-muted-foreground">
               Ctrl+Enter per salvare, Esc per chiudere
@@ -173,7 +343,15 @@ export const QuickCommentModal: React.FC<QuickCommentModalProps> = ({
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {/* Resize handle */}
+        <div 
+          className="absolute bottom-0 right-0 w-4 h-4 cursor-nw-resize"
+          onMouseDown={handleResizeStart}
+        >
+          <div className="absolute bottom-1 right-1 w-2 h-2 bg-muted-foreground/50 rounded-sm"></div>
+        </div>
+      </div>
+    </div>
   );
 };

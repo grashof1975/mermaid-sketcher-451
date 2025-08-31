@@ -65,6 +65,11 @@ declare class Theme {
     todayLineColor: string;
     personBorder: any;
     personBkg: string;
+    archEdgeColor: string;
+    archEdgeArrowColor: string;
+    archEdgeWidth: string;
+    archGroupBorderColor: any;
+    archGroupBorderWidth: string;
     labelColor: string;
     errorBkgColor: string;
     errorTextColor: string;

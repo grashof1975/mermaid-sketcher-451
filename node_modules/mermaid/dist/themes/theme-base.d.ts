@@ -127,6 +127,11 @@ declare class Theme {
     pieOuterStrokeWidth: any;
     pieOuterStrokeColor: any;
     pieOpacity: any;
+    archEdgeColor: any;
+    archEdgeArrowColor: any;
+    archEdgeWidth: any;
+    archGroupBorderColor: any;
+    archGroupBorderWidth: any;
     quadrant1Fill: any;
     quadrant2Fill: any;
     quadrant3Fill: any;

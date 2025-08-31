@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Eye, Trash2, Plus, Folder, FolderOpen, Archive, Briefcase, BookOpen, Settings, Star, Heart, Lightbulb, Target, Edit, X, Move, Copy, CheckSquare, FolderMinus, MoreVertical } from 'lucide-react';
+import { Eye, Trash2, Plus, Folder, FolderOpen, Archive, Briefcase, BookOpen, Settings, Star, Heart, Lightbulb, Target, Edit, X, Move, Copy, CheckSquare, FolderMinus, MoreVertical, Share, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +25,7 @@ import { db, supabase } from '@/utils/supabase';
 import { CreateFolderModal } from './CreateFolderModal';
 import { DiagramViewsTooltip } from './DiagramViewsTooltip';
 import { TagsEditor } from './TagsEditor';
+import { ShareViewModal } from './ShareViewModal';
 import { toast } from '@/hooks/use-toast';
 import {
   DndContext,
@@ -65,6 +72,14 @@ interface FolderItem {
     zoom_level?: number;
     created_at: string;
   }>;
+  
+  // Shared users for diagram items (populated separately)
+  shared_users?: Array<{
+    id: string;
+    username: string;
+    permission_level: string;
+    status: string;
+  }>;
 }
 
 interface Diagram {
@@ -79,6 +94,8 @@ interface ViewFolderSidebarProps {
   onOpenDiagram?: (diagramId: string) => void;
   onLoadView?: (viewId: string) => void;
   diagrams?: Diagram[];
+  // Debug toggle for auto-switch behavior
+  onActiveTabChange?: (tab: string) => void;
 }
 
 // Icon mapping
@@ -116,7 +133,8 @@ const SortableItem: React.FC<{
   getAllFolderTags?: () => string[];
   availableFolders?: FolderItem[];
   children?: React.ReactNode;
-}> = ({ item, level, index, isExpanded, isSelected, onToggleExpand, onEdit, onDelete, onSelect, onOpenDiagram, onLoadView, onMoveToFolder, onTagsChange, onBulkTagOperation, getAllFolderTags, availableFolders = [], children }) => {
+  handleAutoSwitchToViews?: () => void;
+}> = ({ item, level, index, isExpanded, isSelected, onToggleExpand, onEdit, onDelete, onSelect, onOpenDiagram, onLoadView, onMoveToFolder, onTagsChange, onBulkTagOperation, getAllFolderTags, availableFolders = [], children, handleAutoSwitchToViews }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(item.name);
   
@@ -302,8 +320,10 @@ const SortableItem: React.FC<{
                 // Double click opens the view/diagram
                 if (item.diagram_id && onOpenDiagram) {
                   onOpenDiagram(item.diagram_id);
+                  handleAutoSwitchToViews?.();
                 } else if (onLoadView) {
                   onLoadView(item.id);
+                  handleAutoSwitchToViews?.();
                 } else {
                   console.warn('onLoadView not provided for view:', item.id, item.name);
                   toast({
@@ -321,6 +341,49 @@ const SortableItem: React.FC<{
               <span className="text-xs text-muted-foreground">
                 {Math.round(item.zoom_level * 100)}%
               </span>
+            )}
+            
+            {/* Tags for views and folders */}
+            {item.tags && item.tags.length > 0 && (
+              <div className="flex gap-1 ml-2">
+                {item.tags.map((tag, tagIndex) => (
+                  <Badge 
+                    key={`${tag}-${tagIndex}`} 
+                    variant="secondary" 
+                    className="text-xs h-4 px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200"
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Shared users for diagrams */}
+            {!item.is_folder && item.shared_users && item.shared_users.length > 0 && (
+              <div className="flex items-center gap-1 ml-2">
+                <Users className="h-3 w-3 text-green-600" />
+                <div className="flex gap-1">
+                  {item.shared_users.slice(0, 3).map((sharedUser, userIndex) => (
+                    <Badge 
+                      key={`${sharedUser.id}-${userIndex}`} 
+                      variant="outline" 
+                      className="text-xs h-4 px-1.5 py-0 bg-green-50 text-green-700 border-green-200"
+                      title={`${sharedUser.username} (${sharedUser.permission_level})`}
+                    >
+                      {sharedUser.username.slice(0, 8)}
+                    </Badge>
+                  ))}
+                  {item.shared_users.length > 3 && (
+                    <Badge 
+                      variant="outline" 
+                      className="text-xs h-4 px-1.5 py-0 bg-green-50 text-green-700 border-green-200"
+                      title={`Altri ${item.shared_users.length - 3} utenti`}
+                    >
+                      +{item.shared_users.length - 3}
+                    </Badge>
+                  )}
+                </div>
+              </div>
             )}
             
             {/* Selection indicator */}
@@ -389,6 +452,25 @@ const SortableItem: React.FC<{
         {/* Action buttons - positioned at right */}
         {!isVirtualFolder && (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 ml-auto">
+            {/* Share button for views only */}
+            {!item.is_folder && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShareViewModal({
+                    isOpen: true,
+                    viewId: item.id,
+                    viewName: item.name
+                  });
+                }}
+                className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700"
+                title="Condividi vista"
+              >
+                <Share className="h-3 w-3" />
+              </Button>
+            )}
+            
             <Button
               variant="ghost"
               size="sm"
@@ -418,12 +500,137 @@ const SortableItem: React.FC<{
   return itemContent;
 };
 
+// Condivisi Folder Component - Shows shared diagrams
+const CondivisiFolder: React.FC<{
+  onOpenDiagram?: (diagramId: string) => void;
+  handleAutoSwitchToViews?: () => void;
+}> = ({ onOpenDiagram, handleAutoSwitchToViews }) => {
+  const { user } = useAuth();
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [sharedDiagrams, setSharedDiagrams] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Load shared diagrams when expanded (always reload to get fresh data)
+  useEffect(() => {
+    if (isExpanded && user) {
+      console.log('🔍 DEBUG: Folder expanded, loading shared diagrams...');
+      loadSharedDiagrams();
+    }
+  }, [isExpanded, user]);
+
+  const loadSharedDiagrams = async () => {
+    if (!user) {
+      console.log('🔍 DEBUG: No user, skipping shared diagrams load');
+      return;
+    }
+    
+    console.log('🔍 DEBUG: Loading shared diagrams for user:', user.id);
+    setLoading(true);
+    try {
+      const shared = await db.diagrams.getSharedWithUser(user.id);
+      console.log('🔍 DEBUG: Shared diagrams loaded:', shared);
+      console.log('🔍 DEBUG: Count:', shared?.length || 0);
+      console.log('🔍 DEBUG: First shared diagram structure:', shared?.[0]);
+      
+      if (shared && shared.length > 0) {
+        console.log('✅ SUCCESS: Found shared diagrams, setting state');
+      } else {
+        console.log('ℹ️  INFO: No shared diagrams found');
+      }
+      
+      setSharedDiagrams(shared || []);
+    } catch (error) {
+      console.error('❌ Error loading shared diagrams:', error);
+      console.error('❌ Error details:', error);
+      setSharedDiagrams([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDiagramClick = (diagramId: string, title: string) => {
+    console.log('🔄 Clicking shared diagram:', { diagramId, title });
+    // Use the proper diagram loading mechanism instead of window navigation
+    if (onOpenDiagram) {
+      onOpenDiagram(diagramId);
+      handleAutoSwitchToViews();
+    } else {
+      console.warn('⚠️ onOpenDiagram not provided, falling back to URL navigation');
+      // Fallback to URL navigation if onOpenDiagram is not available
+      window.location.href = `/?diagram=${diagramId}`;
+    }
+  };
+
+  return (
+    <div className="bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-2">
+      {/* Header */}
+      <div 
+        className="flex items-center gap-2 cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-800/30 rounded px-1 py-1 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {isExpanded ? (
+          <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        ) : (
+          <Folder className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        )}
+        <Users className="h-3 w-3 text-blue-500" />
+        <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+          Condivisi ({sharedDiagrams.length})
+        </span>
+        <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200">
+          Shared
+        </Badge>
+      </div>
+
+      {/* Content */}
+      {isExpanded && (
+        <div className="mt-2 ml-6 space-y-1">
+          {loading ? (
+            <div className="text-xs text-blue-600 dark:text-blue-400 p-1">
+              Caricamento...
+            </div>
+          ) : sharedDiagrams.length === 0 ? (
+            <div className="text-xs text-blue-500 dark:text-blue-400 p-1">
+              Nessun diagramma condiviso
+            </div>
+          ) : (
+            sharedDiagrams.map((shared: any) => {
+              // Defensive check - skip if no diagram data
+              if (!shared || !shared.id || !shared.title) {
+                console.warn('⚠️ Skipping invalid shared diagram:', shared);
+                return null;
+              }
+              
+              return (
+                <div
+                  key={shared.id}
+                  className="flex items-center gap-2 cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-800/30 rounded px-2 py-1 transition-colors"
+                  onClick={() => handleDiagramClick(shared.id, shared.title)}
+                >
+                  <BookOpen className="h-3 w-3 text-blue-500 shrink-0" />
+                  <span className="text-xs text-blue-700 dark:text-blue-300 truncate">
+                    {shared.title}
+                  </span>
+                  <Badge variant="outline" className="text-xs bg-transparent border-blue-300 text-blue-600 dark:border-blue-600 dark:text-blue-400">
+                    {shared.shared_permission || shared.permission_level || 'viewer'}
+                  </Badge>
+                </div>
+              );
+            }).filter(Boolean)
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
   isCollapsed = false,
   onToggleCollapse,
   onOpenDiagram,
   onLoadView,
-  diagrams = []
+  diagrams = [],
+  onActiveTabChange
 }) => {
   const { user } = useAuth();
   const [items, setItems] = useState<FolderItem[]>([]);
@@ -431,6 +638,29 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['__no_folder_virtual__', '__views_virtual__', '__mother_views_virtual__'])); // Virtual folders expanded by default
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+  const [shareViewModal, setShareViewModal] = useState<{ isOpen: boolean; viewId: string; viewName: string }>({
+    isOpen: false,
+    viewId: '',
+    viewName: ''
+  });
+  
+  // Debug toggles for auto-switch behavior (like in floating bar)
+  const [debugAutoSwitchFolders, setDebugAutoSwitchFolders] = useState(() => {
+    return localStorage.getItem('cartelle-debugAutoSwitch') === 'true';
+  });
+  
+  // Save debug toggle state to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('cartelle-debugAutoSwitch', debugAutoSwitchFolders.toString());
+  }, [debugAutoSwitchFolders]);
+  
+  // Helper function to handle auto-switch to views tab
+  const handleAutoSwitchToViews = () => {
+    if (onActiveTabChange && debugAutoSwitchFolders) {
+      console.log('🔧 DEBUG: Auto-switching to views tab from Cartelle');
+      onActiveTabChange('views');
+    }
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -459,8 +689,9 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
       for (const item of allViews || []) {
         let itemWithViews = { ...item };
         
-        // If this is a diagram (not a folder and has diagram_id), load its associated views
+        // If this is a diagram (not a folder and has diagram_id), load its associated views and shared users
         if (!item.is_folder && item.diagram_id) {
+          // Load associated views
           const { data: associatedViews, error: viewsError } = await supabase
             .from('saved_views')
             .select('id, name, zoom_level, created_at')
@@ -471,6 +702,30 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
 
           if (!viewsError && associatedViews) {
             itemWithViews.associated_views = associatedViews;
+          }
+
+          // Load shared users for this diagram
+          const { data: sharedUsers, error: sharesError } = await supabase
+            .from('diagram_shares')
+            .select(`
+              id,
+              permission_level,
+              status,
+              profiles!diagram_shares_shared_with_id_fkey (
+                id,
+                username
+              )
+            `)
+            .eq('diagram_id', item.diagram_id)
+            .eq('status', 'accepted'); // Only show accepted shares
+
+          if (!sharesError && sharedUsers) {
+            itemWithViews.shared_users = sharedUsers.map(share => ({
+              id: share.profiles?.id || '',
+              username: share.profiles?.username || 'Utente sconosciuto',
+              permission_level: share.permission_level,
+              status: share.status
+            }));
           }
         }
         
@@ -1018,12 +1273,24 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
     }
 
 
+    // Add count to real folders by modifying their names
+    const actualFoldersWithCount = actualFolders.map(folder => {
+      const itemsInFolder = itemsByParent[folder.id] || [];
+      const count = itemsInFolder.length;
+      
+      return {
+        ...folder,
+        // Only add count if there are items in the folder
+        name: count > 0 ? `${folder.name} (${count})` : folder.name
+      };
+    });
+
     // Build root items list with virtual folders first
     const rootItems = [
       ...(virtualMotherViewsFolder ? [virtualMotherViewsFolder] : []),
       ...(virtualViewsFolder ? [virtualViewsFolder] : []),
       ...(virtualNoFolder ? [virtualNoFolder] : []),
-      ...actualFolders
+      ...actualFoldersWithCount
     ];
 
     return { 
@@ -1048,12 +1315,17 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
       const isExpanded = expandedFolders.has(item.id);
       const isSelected = selectedItems.has(item.id);
       const children = itemsByParent[item.id] || [];
+      
+      // Add count to folder name if it's a folder and has children
+      const displayItem = item.is_folder && children.length > 0 && !item.name.includes('(')
+        ? { ...item, name: `${item.name} (${children.length})` }
+        : item;
 
 
       return (
         <SortableItem
           key={item.id}
-          item={item}
+          item={displayItem}
           level={level}
           index={itemIndex}
           isExpanded={isExpanded}
@@ -1069,6 +1341,7 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
           onBulkTagOperation={handleBulkTagOperation}
           getAllFolderTags={getAllFolderTags}
           availableFolders={availableFolders}
+          handleAutoSwitchToViews={handleAutoSwitchToViews}
         >
           {children.length > 0 && isExpanded && (
             <div className="ml-4">
@@ -1097,6 +1370,7 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
                     onBulkTagOperation={handleBulkTagOperation}
                     getAllFolderTags={getAllFolderTags}
                     availableFolders={availableFolders}
+                    handleAutoSwitchToViews={handleAutoSwitchToViews}
                   >
                     {grandChildren.length > 0 && childIsExpanded && (
                       <div className="ml-4">
@@ -1120,7 +1394,8 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
   const { rootItems, itemsByParent } = organizeItems();
 
   return (
-    <div className="w-full bg-background/50 backdrop-blur-sm border-t border-border p-3 space-y-3">
+    <TooltipProvider>
+      <div className="w-full bg-background/50 backdrop-blur-sm border-t border-border p-3 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -1133,6 +1408,28 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* Debug toggle for auto-switch behavior */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={debugAutoSwitchFolders ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setDebugAutoSwitchFolders(!debugAutoSwitchFolders)}
+                className="h-6 px-2 text-xs"
+              >
+                <Eye className="h-3 w-3 mr-1" />
+                {debugAutoSwitchFolders ? 'ON' : 'OFF'}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-xs">
+              <div className="text-xs">
+                <div className="font-medium">🔧 Debug Auto-Switch</div>
+                <div className="mt-1">
+                  {debugAutoSwitchFolders ? '✅ ON' : '❌ OFF'}: Switch automatico al tab Viste quando si interagisce con cartelle e viste
+                </div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
           <CreateFolderModal onCreateFolder={handleCreateFolder} />
         </div>
       </div>
@@ -1202,22 +1499,45 @@ export const ViewFolderSidebar: React.FC<ViewFolderSidebarProps> = ({
             />
           </div>
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={items.map(i => i.id)}
-              strategy={verticalListSortingStrategy}
+          <div className="space-y-2">
+            {/* Condivisi Folder - Always visible at top */}
+            <CondivisiFolder 
+              onOpenDiagram={onOpenDiagram}
+              handleAutoSwitchToViews={handleAutoSwitchToViews}
+            />
+            
+            {/* Regular folders and views */}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              <div className="space-y-1">
-                {renderItems(rootItems, 0, 0, itemsByParent, rootItems.filter(item => item.is_folder))}
-              </div>
-            </SortableContext>
-          </DndContext>
+              <SortableContext
+                items={items.map(i => i.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-1">
+                  {renderItems(rootItems, 0, 0, itemsByParent, rootItems.filter(item => item.is_folder))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
         )}
       </div>
-    </div>
+
+      {/* Share View Modal */}
+      <ShareViewModal
+        isOpen={shareViewModal.isOpen}
+        onClose={() => setShareViewModal({ isOpen: false, viewId: '', viewName: '' })}
+        viewId={shareViewModal.viewId}
+        viewName={shareViewModal.viewName}
+        currentUserName={user?.user_metadata?.username}
+        onShareSent={(shareData) => {
+          // TODO: Handle successful share - could update UI to show shared status
+          console.log('View shared successfully:', shareData);
+        }}
+      />
+      </div>
+    </TooltipProvider>
   );
 };

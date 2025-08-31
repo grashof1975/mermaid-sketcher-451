@@ -6,10 +6,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Globe, Trash2, Plus, Tag, Save, Filter, X, Eye, MessageCircle, Trash } from 'lucide-react';
+import { FileText, Globe, Trash2, Plus, Tag, Save, Filter, X, Eye, MessageCircle, Trash, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { TagsEditor } from './TagsEditor';
+import { TagFilterBar } from './TagFilterBar';
+import { useTagFilter } from '@/hooks/useTagFilter';
 
 interface Diagram {
   id: string;
@@ -21,6 +23,16 @@ interface Diagram {
   tags: string[];
   created_at: string;
   updated_at: string;
+  user_id?: string;
+  // Shared diagram fields
+  is_shared?: boolean;
+  shared_permission?: 'viewer' | 'commenter' | 'editor';
+  shared_by?: {
+    username: string;
+    email: string;
+    avatar_url?: string;
+  };
+  shared_at?: string;
 }
 
 interface SavedView {
@@ -63,10 +75,12 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
   const [editingTags, setEditingTags] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editingTitleValue, setEditingTitleValue] = useState('');
-  const [selectedTagFilter, setSelectedTagFilter] = useState<string>('');
   const [diagramViews, setDiagramViews] = useState<Record<string, SavedView[]>>({});
   const [diagramComments, setDiagramComments] = useState<Record<string, Comment[]>>({});
   const { user } = useAuth();
+
+  // Initialize tag filtering system (global filters, no specific diagram)
+  const tagFilter = useTagFilter(undefined);
 
   useEffect(() => {
     if (user) {
@@ -81,26 +95,43 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
     
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Load owned diagrams
+      const { data: ownedDiagrams, error: ownedError } = await supabase
         .from('diagrams')
         .select('*')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false })
         .limit(20);
       
-      if (error) {
-        toast({
-          title: "Errore",
-          description: "Impossibile caricare i diagrammi",
-          variant: "destructive",
-        });
-      } else {
-        setDiagrams(data || []);
-        onDiagramsChange(data || []);
-        await loadViewsAndComments(data || []);
+      if (ownedError) {
+        console.error('Error loading owned diagrams:', ownedError);
       }
+
+      // 2. Load shared diagrams using our new function
+      let sharedDiagrams = [];
+      try {
+        const { db } = await import('@/utils/supabase');
+        sharedDiagrams = await db.diagrams.getSharedWithUser(user.id);
+      } catch (sharedError) {
+        console.error('Error loading shared diagrams:', sharedError);
+      }
+
+      // 3. Combine and sort all diagrams
+      const allDiagrams = [
+        ...(ownedDiagrams || []),
+        ...sharedDiagrams
+      ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+      setDiagrams(allDiagrams);
+      onDiagramsChange(allDiagrams);
+      await loadViewsAndComments(allDiagrams);
     } catch (error) {
       console.error('Error loading diagrams:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile caricare i diagrammi",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -312,13 +343,10 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
     return Array.from(tagSet).sort();
   }, [diagrams]);
 
-  // Filter diagrams based on selected tag
+  // Filter diagrams using the new tag filtering system
   const filteredDiagrams = useMemo(() => {
-    if (!selectedTagFilter || selectedTagFilter === 'all') return diagrams;
-    return diagrams.filter(diagram => 
-      diagram.tags.includes(selectedTagFilter)
-    );
-  }, [diagrams, selectedTagFilter]);
+    return tagFilter.applyTagFilter(diagrams);
+  }, [diagrams, tagFilter.filterState]);
 
   if (!user) {
     return (
@@ -336,65 +364,56 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
           <h3 className="font-semibold text-sm">I Miei Diagrammi</h3>
         </div>
         
-        {/* Tag Filter */}
+        {/* New Advanced Tag Filter Bar */}
+        <TagFilterBar
+          activeTags={tagFilter.filterState.activeTags}
+          filterMode={tagFilter.filterState.filterMode}
+          filteredCount={filteredDiagrams.length}
+          totalCount={diagrams.length}
+          onToggleTag={tagFilter.toggleTag}
+          onSetFilterMode={tagFilter.setFilterMode}
+          onClearAll={tagFilter.clearAllFilters}
+        />
+
+        {/* Tag Selection Section */}
         {allTags.length > 0 && (
           <div className="mb-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedTagFilter} onValueChange={setSelectedTagFilter}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Filtra per tag..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti i diagrammi</SelectItem>
-                  {allTags.map(tag => (
-                    <SelectItem key={tag} value={tag}>
-                      <Badge variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedTagFilter && selectedTagFilter !== 'all' && (
-                <Button
-                  onClick={() => setSelectedTagFilter('all')}
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
+            <div className="text-xs text-muted-foreground">Clicca sui tag per filtrare:</div>
+            <TagsEditor
+              tags={allTags}
+              onChange={() => {}} // Read-only for filtering
+              maxTags={50} // Allow showing all tags
+              showFilterToggle={true}
+              activeTags={tagFilter.filterState.activeTags}
+              onToggleFilter={tagFilter.toggleTag}
+            />
+            
             
             {/* Tag Management */}
-            {allTags.length > 0 && (
-              <div className="space-y-1">
-                <div className="text-xs text-muted-foreground">Gestisci tag:</div>
-                <div className="flex flex-wrap gap-1">
-                  {allTags.map(tag => {
-                    const diagramsWithTag = diagrams.filter(d => d.tags.includes(tag));
-                    return (
-                      <div key={tag} className="flex items-center gap-1 group">
-                        <Badge variant="outline" className="text-xs">
-                          {tag} ({diagramsWithTag.length})
-                        </Badge>
-                        <Button
-                          onClick={() => deleteTagFromAllDiagrams(tag)}
-                          size="sm"
-                          variant="ghost"
-                          className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground"
-                          title="Elimina da tutti i diagrammi"
-                        >
-                          <Trash className="h-2.5 w-2.5" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Gestisci tag:</div>
+              <div className="flex flex-wrap gap-1">
+                {allTags.map(tag => {
+                  const diagramsWithTag = diagrams.filter(d => d.tags.includes(tag));
+                  return (
+                    <div key={tag} className="flex items-center gap-1 group">
+                      <Badge variant="outline" className="text-xs">
+                        {tag} ({diagramsWithTag.length})
+                      </Badge>
+                      <Button
+                        onClick={() => deleteTagFromAllDiagrams(tag)}
+                        size="sm"
+                        variant="ghost"
+                        className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground"
+                        title="Elimina da tutti i diagrammi"
+                      >
+                        <Trash className="h-2.5 w-2.5" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
           </div>
         )}
         <div className="flex items-center gap-2">
@@ -430,12 +449,12 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
               <div className="text-center text-muted-foreground p-4">
                 <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">
-                  {selectedTagFilter && selectedTagFilter !== 'all'
-                    ? `Nessun diagramma con il tag "${selectedTagFilter}"`
+                  {tagFilter.hasActiveFilters
+                    ? `Nessun diagramma trovato con i filtri attivi`
                     : "Nessun diagramma salvato"
                   }
                 </p>
-                {(!selectedTagFilter || selectedTagFilter === 'all') && (
+                {!tagFilter.hasActiveFilters && (
                   <Button 
                     onClick={onCreateNew}
                     size="sm" 
@@ -499,6 +518,9 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                                 {diagram.is_public && (
                                   <Globe className="h-2.5 w-2.5 text-blue-500 flex-shrink-0" />
                                 )}
+                                {diagram.is_shared && (
+                                  <Users className="h-2.5 w-2.5 text-green-500 flex-shrink-0" />
+                                )}
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="max-w-xs">
@@ -510,6 +532,12 @@ export const DiagramsList: React.FC<DiagramsListProps> = ({
                                 <div className="text-xs opacity-60">
                                   {formatDate(diagram.updated_at)}
                                   {diagram.version > 1 && ` • v${diagram.version}`}
+                                  {diagram.is_shared && diagram.shared_by && (
+                                    <div className="text-green-600 dark:text-green-400 mt-1">
+                                      📤 Condiviso da {diagram.shared_by.username}
+                                      {diagram.shared_permission && ` • Permesso: ${diagram.shared_permission}`}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </TooltipContent>

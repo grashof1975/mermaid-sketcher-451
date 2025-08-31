@@ -1,0 +1,438 @@
+﻿-- Generated schema dump
+-- Created: 2025-08-29T13:51:27.718Z
+
+CREATE TABLE auth.audit_log_entries (
+  instance_id uuid,
+  id uuid NOT NULL,
+  payload json,
+  created_at timestamp with time zone,
+  ip_address character varying(64) NOT NULL DEFAULT ''::character varying
+);
+
+CREATE TABLE auth.flow_state (
+  id uuid NOT NULL,
+  user_id uuid,
+  auth_code text NOT NULL,
+  code_challenge_method USER-DEFINED NOT NULL,
+  code_challenge text NOT NULL,
+  provider_type text NOT NULL,
+  provider_access_token text,
+  provider_refresh_token text,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  authentication_method text NOT NULL,
+  auth_code_issued_at timestamp with time zone
+);
+
+CREATE TABLE auth.identities (
+  provider_id text NOT NULL,
+  user_id uuid NOT NULL,
+  identity_data jsonb NOT NULL,
+  provider text NOT NULL,
+  last_sign_in_at timestamp with time zone,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  email text,
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+);
+
+CREATE TABLE auth.instances (
+  id uuid NOT NULL,
+  uuid uuid,
+  raw_base_config text,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone
+);
+
+CREATE TABLE auth.mfa_amr_claims (
+  session_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL,
+  updated_at timestamp with time zone NOT NULL,
+  authentication_method text NOT NULL,
+  id uuid NOT NULL
+);
+
+CREATE TABLE auth.mfa_challenges (
+  id uuid NOT NULL,
+  factor_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL,
+  verified_at timestamp with time zone,
+  ip_address inet NOT NULL,
+  otp_code text,
+  web_authn_session_data jsonb
+);
+
+CREATE TABLE auth.mfa_factors (
+  id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  friendly_name text,
+  factor_type USER-DEFINED NOT NULL,
+  status USER-DEFINED NOT NULL,
+  created_at timestamp with time zone NOT NULL,
+  updated_at timestamp with time zone NOT NULL,
+  secret text,
+  phone text,
+  last_challenged_at timestamp with time zone,
+  web_authn_credential jsonb,
+  web_authn_aaguid uuid
+);
+
+CREATE TABLE auth.oauth_clients (
+  id uuid NOT NULL,
+  client_id text NOT NULL,
+  client_secret_hash text NOT NULL,
+  registration_type USER-DEFINED NOT NULL,
+  redirect_uris text NOT NULL,
+  grant_types text NOT NULL,
+  client_name text,
+  client_uri text,
+  logo_uri text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  deleted_at timestamp with time zone
+);
+
+CREATE TABLE auth.one_time_tokens (
+  id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  token_type USER-DEFINED NOT NULL,
+  token_hash text NOT NULL,
+  relates_to text NOT NULL,
+  created_at timestamp without time zone NOT NULL DEFAULT now(),
+  updated_at timestamp without time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE auth.refresh_tokens (
+  instance_id uuid,
+  id bigint NOT NULL DEFAULT nextval('auth.refresh_tokens_id_seq'::regclass),
+  token character varying(255),
+  user_id character varying(255),
+  revoked boolean,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  parent character varying(255),
+  session_id uuid
+);
+
+CREATE TABLE auth.saml_providers (
+  id uuid NOT NULL,
+  sso_provider_id uuid NOT NULL,
+  entity_id text NOT NULL,
+  metadata_xml text NOT NULL,
+  metadata_url text,
+  attribute_mapping jsonb,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  name_id_format text
+);
+
+CREATE TABLE auth.saml_relay_states (
+  id uuid NOT NULL,
+  sso_provider_id uuid NOT NULL,
+  request_id text NOT NULL,
+  for_email text,
+  redirect_to text,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  flow_state_id uuid
+);
+
+CREATE TABLE auth.schema_migrations (
+  version character varying(255) NOT NULL
+);
+
+CREATE TABLE auth.sessions (
+  id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  factor_id uuid,
+  aal USER-DEFINED,
+  not_after timestamp with time zone,
+  refreshed_at timestamp without time zone,
+  user_agent text,
+  ip inet,
+  tag text
+);
+
+CREATE TABLE auth.sso_domains (
+  id uuid NOT NULL,
+  sso_provider_id uuid NOT NULL,
+  domain text NOT NULL,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone
+);
+
+CREATE TABLE auth.sso_providers (
+  id uuid NOT NULL,
+  resource_id text,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  disabled boolean
+);
+
+CREATE TABLE auth.users (
+  instance_id uuid,
+  id uuid NOT NULL,
+  aud character varying(255),
+  role character varying(255),
+  email character varying(255),
+  encrypted_password character varying(255),
+  email_confirmed_at timestamp with time zone,
+  invited_at timestamp with time zone,
+  confirmation_token character varying(255),
+  confirmation_sent_at timestamp with time zone,
+  recovery_token character varying(255),
+  recovery_sent_at timestamp with time zone,
+  email_change_token_new character varying(255),
+  email_change character varying(255),
+  email_change_sent_at timestamp with time zone,
+  last_sign_in_at timestamp with time zone,
+  raw_app_meta_data jsonb,
+  raw_user_meta_data jsonb,
+  is_super_admin boolean,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  phone text DEFAULT NULL::character varying,
+  phone_confirmed_at timestamp with time zone,
+  phone_change text DEFAULT ''::character varying,
+  phone_change_token character varying(255) DEFAULT ''::character varying,
+  phone_change_sent_at timestamp with time zone,
+  confirmed_at timestamp with time zone,
+  email_change_token_current character varying(255) DEFAULT ''::character varying,
+  email_change_confirm_status smallint DEFAULT 0,
+  banned_until timestamp with time zone,
+  reauthentication_token character varying(255) DEFAULT ''::character varying,
+  reauthentication_sent_at timestamp with time zone,
+  is_sso_user boolean NOT NULL DEFAULT false,
+  deleted_at timestamp with time zone,
+  is_anonymous boolean NOT NULL DEFAULT false
+);
+
+CREATE TABLE public.comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  diagram_id uuid,
+  text text NOT NULL,
+  linked_view_id uuid,
+  is_resolved boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.comments_with_user (
+  id uuid,
+  user_id uuid,
+  diagram_id uuid,
+  text text,
+  linked_view_id uuid,
+  is_resolved boolean,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  username text,
+  avatar_url text
+);
+
+CREATE TABLE public.diagram_shares (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  diagram_id uuid NOT NULL,
+  owner_id uuid NOT NULL,
+  shared_with_id uuid NOT NULL,
+  permission_level text NOT NULL,
+  invited_by uuid,
+  invitation_message text,
+  status text NOT NULL DEFAULT 'pending'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  responded_at timestamp with time zone,
+  expires_at timestamp with time zone DEFAULT (now() + '7 days'::interval)
+);
+
+CREATE TABLE public.diagrams (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  title character varying(255) NOT NULL DEFAULT 'Untitled Diagram'::character varying,
+  mermaid_code text NOT NULL,
+  description text,
+  is_public boolean DEFAULT false,
+  version integer DEFAULT 1,
+  tags ARRAY DEFAULT '{}'::text[],
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  sharing_enabled boolean DEFAULT true,
+  default_share_permission text DEFAULT 'viewer'::text
+);
+
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
+  username text,
+  full_name text,
+  avatar_url text,
+  website text,
+  theme_preference text DEFAULT 'system'::text,
+  toast_notifications_enabled boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.provisional_views (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  diagram_id uuid,
+  comment_id uuid,
+  name character varying(255) NOT NULL DEFAULT 'Vista Provvisoria'::character varying,
+  zoom_level numeric NOT NULL DEFAULT 1.00,
+  pan_x numeric DEFAULT 0,
+  pan_y numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.public_share_links (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  diagram_id uuid NOT NULL,
+  created_by uuid NOT NULL,
+  share_token text NOT NULL DEFAULT replace(replace(encode(gen_random_bytes(32), 'base64'::text), '+'::text, '-'::text), '/'::text, '_'::text),
+  is_active boolean DEFAULT true,
+  allow_comments boolean DEFAULT false,
+  password_protected boolean DEFAULT false,
+  access_password text,
+  view_count integer DEFAULT 0,
+  unique_visitors jsonb DEFAULT '[]'::jsonb,
+  expires_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  last_accessed timestamp with time zone
+);
+
+CREATE TABLE public.public_view_links (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  saved_view_id uuid NOT NULL,
+  share_token text NOT NULL,
+  password_hash text,
+  created_by uuid NOT NULL,
+  allows_comments boolean DEFAULT false,
+  is_active boolean DEFAULT true,
+  view_count integer DEFAULT 0,
+  unique_visitors ARRAY DEFAULT '{}'::text[],
+  created_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone,
+  last_accessed timestamp with time zone
+);
+
+CREATE TABLE public.saved_views (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  diagram_id uuid,
+  name character varying(255) NOT NULL,
+  zoom_level numeric NOT NULL DEFAULT 1.00,
+  pan_x numeric DEFAULT 0,
+  pan_y numeric DEFAULT 0,
+  parent_id uuid,
+  is_folder boolean DEFAULT false,
+  expanded boolean DEFAULT true,
+  sort_order integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  parent_folder_id uuid,
+  folder_sort_order integer DEFAULT 0,
+  folder_icon character varying(50) DEFAULT 'folder'::character varying,
+  folder_color character varying(7),
+  is_mother_view boolean DEFAULT false,
+  tags ARRAY DEFAULT '{}'::text[],
+  tag_application_mode character varying(20) DEFAULT 'apply_to_views'::character varying
+);
+
+CREATE TABLE public.saved_views_shares (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  saved_view_id uuid NOT NULL,
+  owner_id uuid NOT NULL,
+  shared_with_id uuid NOT NULL,
+  permission_level text NOT NULL,
+  invited_by uuid,
+  invitation_message text,
+  status text NOT NULL DEFAULT 'pending'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  responded_at timestamp with time zone,
+  expires_at timestamp with time zone DEFAULT (now() + '7 days'::interval)
+);
+
+CREATE TABLE public.sharing_activities (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  diagram_id uuid NOT NULL,
+  user_id uuid,
+  activity_type text NOT NULL,
+  target_user_id uuid,
+  old_permission text,
+  new_permission text,
+  metadata jsonb,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.tag_statistics (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  tag_name character varying(100) NOT NULL,
+  usage_count integer DEFAULT 0,
+  filter_count integer DEFAULT 0,
+  last_used timestamp with time zone DEFAULT now(),
+  diagram_count integer DEFAULT 0,
+  view_count integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.user_preferences (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  theme_preference character varying(20) DEFAULT 'system'::character varying,
+  toast_notifications_enabled boolean DEFAULT true,
+  keyboard_shortcuts_enabled boolean DEFAULT true,
+  auto_save_interval integer DEFAULT 30,
+  default_zoom_level numeric DEFAULT 1.00,
+  ui_layout_config jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.user_tag_filters (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  diagram_id uuid,
+  active_tags ARRAY DEFAULT '{}'::text[],
+  filter_mode character varying(10) DEFAULT 'AND'::character varying,
+  is_active boolean DEFAULT true,
+  preset_name character varying(100),
+  is_preset boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.view_comment_associations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  view_id uuid,
+  comment_id uuid,
+  association_type character varying(20) NOT NULL DEFAULT 'direct'::character varying,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.view_history (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  diagram_id uuid,
+  operation_type character varying(50) NOT NULL,
+  views_snapshot jsonb NOT NULL,
+  operation_data jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE public.view_sharing_activities (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  saved_view_id uuid NOT NULL,
+  actor_id uuid,
+  target_user_id uuid,
+  activity_type text NOT NULL,
+  activity_details jsonb,
+  ip_address text,
+  user_agent text,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+

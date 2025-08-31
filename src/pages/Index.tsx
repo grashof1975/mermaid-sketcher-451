@@ -4,6 +4,7 @@ import Editor from '@/components/Editor';
 import Preview, { PreviewRef } from '@/components/Preview';
 import AIPrompt from '@/components/AIPrompt';
 import ViewSidebar, { SavedView } from '@/components/ViewSidebar';
+import { ViewFolderSidebar } from '@/components/ViewFolderSidebar';
 import CommentsPanel from '@/components/CommentsPanel';
 import { DiagramsList } from '@/components/DiagramsList';
 import { QuickCommentModal } from '@/components/QuickCommentModal';
@@ -23,6 +24,7 @@ import { debounce } from 'lodash';
 import { useAuth } from '@/contexts/AuthProvider';
 import { supabase } from '@/integrations/supabase/client';
 import { db } from '@/utils/supabase';
+import '@/utils/debugUsers'; // Load debug utilities for development
 
 const DEFAULT_DIAGRAM = `graph TD
     A[Start] --> B{Decision}
@@ -124,6 +126,9 @@ const Index = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showPublicLinkModal, setShowPublicLinkModal] = useState(false);
 
+  // Team system state
+  const [selectedTeam, setSelectedTeam] = useState<any>(null);
+
   // Database functions
   const loadUserPreferences = async () => {
     if (!user) return;
@@ -214,6 +219,8 @@ const Index = () => {
         } else if (data) {
           setCurrentDiagram(data);
           setHasUnsavedChanges(false);
+          // Update diagrams list with the updated diagram
+          setDiagrams(prev => prev.map(d => d.id === data.id ? data : d));
           if (userPreferences.toast_notifications_enabled) {
             toast({
               title: "Diagramma aggiornato",
@@ -234,6 +241,8 @@ const Index = () => {
         } else if (data) {
           setCurrentDiagram(data);
           setHasUnsavedChanges(false);
+          // Add new diagram to the list at the beginning
+          setDiagrams(prev => [data, ...prev]);
           // Load views and comments for the newly created diagram (should be empty)
           await loadViewsForDiagram(data.id);
           await loadCommentsForDiagram(data.id);
@@ -268,6 +277,9 @@ const Index = () => {
       await loadCommentsForDiagram(diagram.id);
     }
     
+    // Note: Auto-switch to views tab moved to QuickNavigationBar debug toggle
+    // setQuickNavActiveTab('views');
+    
     if (userPreferences.toast_notifications_enabled) {
       toast({
         title: "Diagramma caricato",
@@ -277,9 +289,13 @@ const Index = () => {
   };
 
   const loadViewsForDiagram = async (diagramId: string) => {
-    if (!user) return;
+    if (!user || !diagramId) {
+      console.warn('⚠️ Cannot load views: missing user or diagramId', { user: !!user, diagramId });
+      return;
+    }
     
     try {
+      console.log('🔄 Loading views for diagram:', diagramId);
       const views = await db.savedViews.getAll(diagramId, user.id);
       
       // Convert database format to local format
@@ -299,9 +315,13 @@ const Index = () => {
   };
 
   const loadCommentsForDiagram = async (diagramId: string) => {
-    if (!user) return;
+    if (!user || !diagramId) {
+      console.warn('⚠️ Cannot load comments: missing user or diagramId', { user: !!user, diagramId });
+      return;
+    }
     
     try {
+      console.log('🔄 Loading comments for diagram:', diagramId);
       const comments = await db.comments.getAll(diagramId);
       
       // Convert database format to local format
@@ -350,10 +370,43 @@ const Index = () => {
     [user, userPreferences.auto_save_interval, currentDiagram]
   );
 
+  // Load user diagrams
+  const loadUserDiagrams = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('🔄 Loading user diagrams for:', user.id);
+      const userDiagrams = await db.diagrams.getAll(user.id);
+      console.log('📊 Loaded diagrams:', userDiagrams);
+      setDiagrams(userDiagrams);
+
+      // If no current diagram but we have diagrams, select the most recent one
+      if (!currentDiagram && userDiagrams.length > 0) {
+        const mostRecent = userDiagrams[0]; // They're ordered by updated_at desc
+        console.log('🎯 Setting current diagram to:', mostRecent.title);
+        setCurrentDiagram(mostRecent);
+        setCode(mostRecent.mermaid_code);
+        setHasUnsavedChanges(false);
+      } else if (!currentDiagram && userDiagrams.length === 0) {
+        // No diagrams exist, create a default one
+        console.log('📝 Creating default diagram for new user');
+        await saveDiagram('My First Diagram', DEFAULT_DIAGRAM, 'Welcome to Mermaid Sketcher!');
+      }
+    } catch (error) {
+      console.error('❌ Error loading user diagrams:', error);
+      toast({
+        title: "Error",
+        description: "Could not load your diagrams",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Initialize user data when user changes
   useEffect(() => {
     if (user && !authLoading) {
       loadUserPreferences();
+      loadUserDiagrams(); // Load diagrams after user is authenticated
     } else if (!user) {
       // Reset to defaults when logged out
       setCurrentDiagram(null);
@@ -573,6 +626,54 @@ const Index = () => {
     }
   };
 
+  const handleCreateMotherView = async () => {
+    if (!user || !currentDiagram?.id) {
+      toast({
+        title: "Errore",
+        description: "Devi essere autenticato e avere un diagramma selezionato per creare la vista madre",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Save the current view as the mother view (don't change what's on screen)
+      // Use the current view zoom and pan settings
+      const currentViewSettings = { 
+        zoom: currentView.zoom, 
+        pan: currentView.pan 
+      };
+
+      // Generate mother view name with house emoji
+      const motherViewName = `🏠 ${currentDiagram.title} - Vista Madre`;
+
+      const newView = await db.savedViews.create({
+        name: motherViewName,
+        diagram_id: currentDiagram.id,
+        user_id: user.id,
+        zoom_level: currentViewSettings.zoom,
+        pan_x: currentViewSettings.pan.x,
+        pan_y: currentViewSettings.pan.y,
+        is_mother_view: true, // Now we can use this field since migration was applied
+      });
+
+      // Reload views to show the new mother view
+      await loadViewsForDiagram(currentDiagram.id);
+
+      toast({
+        title: "Vista Madre creata",
+        description: `Vista madre "${motherViewName}" salvata con le impostazioni correnti`,
+      });
+    } catch (error) {
+      console.error('Error creating mother view:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile creare la vista madre",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleLoadView = (view: SavedView) => {
     previewRef.current?.setView(view.zoom, view.pan);
     setCurrentView({ zoom: view.zoom, pan: view.pan });
@@ -621,6 +722,87 @@ const Index = () => {
       toast({
         title: "Errore",
         description: "Impossibile eliminare la vista",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateView = async (id: string) => {
+    console.log('handleUpdateView called with id:', id);
+    
+    if (!user) {
+      console.error('User not authenticated');
+      return;
+    }
+
+    if (!previewRef.current) {
+      console.error('Preview ref not available');
+      return;
+    }
+
+    try {
+      // Ottieni la posizione attuale dal preview (solo pan, non zoom)
+      const currentViewState = previewRef.current.getView();
+      console.log('Current view state:', currentViewState);
+      
+      if (!currentViewState) {
+        toast({
+          title: "Errore",
+          description: "Impossibile ottenere la posizione attuale del diagramma",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Trova la vista da aggiornare per mantenere zoom originale
+      const existingView = savedViews.find(view => view.id === id);
+      console.log('Existing view:', existingView);
+      
+      if (!existingView) {
+        toast({
+          title: "Errore",
+          description: "Vista non trovata",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // SALVA ESATTAMENTE QUELLO CHE VEDI A SCHERMO - senza modifiche
+      const updatedViewData = {
+        zoom_level: currentViewState.zoom, // Usa zoom attuale (quello che vedi)
+        pan_x: currentViewState.pan.x,    // Usa posizione attuale (quella che vedi)
+        pan_y: currentViewState.pan.y,    // Usa posizione attuale (quella che vedi)
+      };
+
+      console.log('Updating view with data:', updatedViewData);
+      await db.savedViews.update(id, updatedViewData);
+      
+      // Aggiorna lo stato locale con formato locale - usa valori attuali
+      const updatedViewLocal = {
+        zoom: currentViewState.zoom,  // Usa zoom attuale (quello che vedi)
+        pan: currentViewState.pan,    // Usa posizione attuale (quella che vedi)
+        timestamp: Date.now()
+      };
+      
+      setSavedViews(prev => 
+        prev.map(view => 
+          view.id === id 
+            ? { ...view, ...updatedViewLocal }
+            : view
+        )
+      );
+      
+      if (userPreferences.toast_notifications_enabled) {
+        toast({
+          title: "Vista aggiornata",
+          description: "Vista aggiornata con la posizione attuale",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating view:', error);
+      toast({
+        title: "Errore",
+        description: `Impossibile aggiornare la vista: ${error.message}`,
         variant: "destructive",
       });
     }
@@ -1224,6 +1406,9 @@ const Index = () => {
         onExport={handleExport}
         toggleTheme={toggleTheme}
         isDarkMode={isDarkMode}
+        selectedTeam={selectedTeam}
+        onTeamChange={setSelectedTeam}
+        currentDiagramTitle={currentDiagram?.title}
       />
       
       <div className="flex-1 flex flex-col relative">
@@ -1257,7 +1442,8 @@ const Index = () => {
                   <Preview 
                     ref={previewRef}
                     code={code} 
-                    className="flex-1" 
+                    className="flex-1"
+                    title={currentDiagram?.title}
                     onViewChange={handleViewChange}
                     onComponentSelect={handleComponentSelect}
                     nodeSelectionShortcut={nodeSelectionShortcut}
@@ -1276,47 +1462,15 @@ const Index = () => {
             </ResizablePanelGroup>
           </ResizablePanel>
           
-          <ResizableHandle withHandle>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  // Simply save the current view as "Vista 100%" - NO view change!
-                  await handleSaveView("Vista 100%");
-                }}
-                className="bg-background/90 backdrop-blur-sm border hover:bg-accent/50 transition-all duration-200 shadow-sm"
-                title="Salva vista corrente come 'Vista 100%' di riferimento"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                </svg>
-              </Button>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  // Set zoom center point at click position
-                  previewRef.current?.setCenterPoint(e.clientX, e.clientY);
-                }}
-                className="bg-background/90 backdrop-blur-sm border hover:bg-accent/50 transition-all duration-200 shadow-sm"
-                title="Imposta questo punto come centro per lo zoom con rotellina"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M12 2L12 22M2 12L22 12"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </Button>
-            </div>
-          </ResizableHandle>
+          <ResizableHandle withHandle />
+          
           
           <ResizablePanel defaultSize={25} minSize={10}>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="diagrams">Diagrammi</TabsTrigger>
                 <TabsTrigger value="views">Viste</TabsTrigger>
-                <TabsTrigger value="comments">Commenti</TabsTrigger>
+                <TabsTrigger value="folders">Cartelle</TabsTrigger>
               </TabsList>
               
               <TabsContent value="diagrams" className="h-full mt-0">
@@ -1356,21 +1510,97 @@ const Index = () => {
                 />
               </TabsContent>
               
-              <TabsContent value="comments" className="h-full mt-0">
-                <CommentsPanel
-                  comments={comments}
-                  provisionalViews={provisionalViews}
-                  savedViews={savedViews}
-                  currentView={currentView}
-                  onAddComment={handleAddComment}
-                  onDeleteComment={handleDeleteComment}
-                  onEditComment={handleEditComment}
-                  onCreateProvisionalView={handleCreateProvisionalView}
-                  onLoadView={handleLoadProvisionalView}
-                  onUnlinkView={handleUnlinkView}
-                  pendingViewId={pendingCommentViewId}
+              <TabsContent value="folders" className="h-full mt-0">
+                <ViewFolderSidebar
+                  isCollapsed={!showFooterPanel}
+                  onToggleCollapse={() => setShowFooterPanel(!showFooterPanel)}
+                  onOpenDiagram={(diagramId) => {
+                    // Find the diagram by ID and load it
+                    const diagram = diagrams.find(d => d.id === diagramId);
+                    if (diagram) {
+                      loadDiagram(diagram);
+                    }
+                  }}
+                  onLoadView={async (viewId) => {
+                    // Load view from folders system - this requires fetching the view data from the database
+                    if (!user) return;
+                    
+                    try {
+                      const { data: viewData, error } = await supabase
+                        .from('saved_views')
+                        .select('*, diagram_id, zoom_level, pan_x, pan_y')
+                        .eq('id', viewId)
+                        .eq('user_id', user.id)
+                        .single();
+                      
+                      if (error) {
+                        console.error('Error loading view:', error);
+                        toast({
+                          title: "Errore",
+                          description: "Impossibile caricare la vista",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      
+                      if (viewData) {
+                        // First, load the diagram if it exists
+                        if (viewData.diagram_id) {
+                          const diagram = diagrams.find(d => d.id === viewData.diagram_id);
+                          if (diagram) {
+                            // Load the diagram first
+                            setCurrentDiagram(diagram);
+                            setCode(diagram.mermaid_code);
+                            
+                            // Load views for this diagram
+                            await loadViewsForDiagram(diagram.id);
+                            
+                            // Then apply the view settings (zoom and pan)
+                            if (viewData.zoom_level && viewData.pan_x !== undefined && viewData.pan_y !== undefined) {
+                              setTimeout(() => {
+                                previewRef.current?.setView(viewData.zoom_level, { x: viewData.pan_x, y: viewData.pan_y });
+                                setCurrentView({ zoom: viewData.zoom_level, pan: { x: viewData.pan_x, y: viewData.pan_y } });
+                              }, 100); // Small delay to ensure diagram is loaded first
+                            }
+                            
+                            toast({
+                              title: "Vista caricata",
+                              description: `Vista "${viewData.name}" caricata con successo`,
+                            });
+                          } else {
+                            toast({
+                              title: "Errore",
+                              description: "Diagramma associato alla vista non trovato",
+                              variant: "destructive",
+                            });
+                          }
+                        } else {
+                          // This is a legacy view without diagram_id - try to find it in savedViews
+                          const legacyView = savedViews.find(v => v.id === viewId);
+                          if (legacyView) {
+                            handleLoadView(legacyView);
+                          } else {
+                            toast({
+                              title: "Errore",
+                              description: "Vista non trovata",
+                              variant: "destructive",
+                            });
+                          }
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error loading view:', error);
+                      toast({
+                        title: "Errore",
+                        description: "Errore nel caricamento della vista",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  diagrams={diagrams}
                 />
               </TabsContent>
+              
             </Tabs>
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -1413,10 +1643,13 @@ const Index = () => {
           onLoadView={handleLoadView}
           onJumpToComment={handleJumpToComment}
           onDeleteView={handleDeleteView}
+          onUpdateView={handleUpdateView}
           onDeleteComment={handleDeleteComment}
           onQuickSaveComment={() => setShowQuickCommentModal(true)}
           onSetZoomCenter={handleStartZoomCenterSelection}
+          onCreateMotherView={handleCreateMotherView}
           onSelectDiagram={loadDiagram}
+          onOpenDiagram={loadDiagram}
           nodeSelectionShortcut={nodeSelectionShortcut}
           onNodeSelectionShortcutChange={handleNodeSelectionShortcutChange}
           viewNameTemplate={viewNameTemplate}

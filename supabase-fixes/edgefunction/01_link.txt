@@ -1,0 +1,1 @@
+https://cfbaomnccefkpqnfjjiv.supabase.co/functions/v1/super-handler

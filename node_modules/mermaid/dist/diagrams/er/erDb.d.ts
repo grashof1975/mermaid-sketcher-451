@@ -27,9 +27,14 @@ declare namespace Identification {
     let NON_IDENTIFYING: string;
     let IDENTIFYING: string;
 }
-declare function addEntity(name: any, alias?: undefined): any;
+/**
+ * Add entity
+ * @param {string} name - The name of the entity
+ * @param {string | undefined} alias - The alias of the entity
+ */
+declare function addEntity(name: string, alias?: string | undefined): any;
 declare function addAttributes(entityName: any, attribs: any): void;
-declare function getEntities(): {};
+declare function getEntities(): Map<any, any>;
 /**
  * Add a relationship
  *

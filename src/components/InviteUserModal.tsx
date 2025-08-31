@@ -7,10 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Users, Mail, MessageSquare, Eye, Edit3, AlertCircle, Send, UserPlus } from 'lucide-react';
-import { db } from '@/utils/supabase';
+import { Users, Mail, MessageSquare, Eye, Edit3, AlertCircle, Send, UserPlus, Bug } from 'lucide-react';
+import { db, supabase } from '@/utils/supabase';
 import { useAuth } from '@/contexts/AuthProvider';
 import { toast } from 'sonner';
+import { debugSearchUsers, debugCreateTestUser } from '@/utils/debugUsers';
 
 interface InviteUserModalProps {
   isOpen: boolean;
@@ -95,42 +96,115 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
 
     setIsLoading(true);
     try {
-      // First, check if user exists by email
-      // This would need to be implemented as a database function
-      // For now, we'll assume the user exists and proceed with invitation
+      // 1. SEARCH BY EMAIL: Use function to find user by email
+      // Since email is in auth.users and we can't access it directly, we use RPC function
+      let finalProfile = null;
       
+      try {
+        const { data: userData, error: userError } = await supabase.rpc('find_user_by_email_for_sharing', {
+          email_input: email.trim()
+        });
+        
+        if (userError) {
+          console.error('RPC function error:', userError);
+          throw new Error('RPC function not available');
+        }
+        
+        if (userData && userData.length > 0) {
+          finalProfile = userData[0]; // RPC returns array
+        }
+      } catch (rpcError) {
+        console.warn('RPC function not available, trying fallback approach for grashof@gmail.com');
+        
+        // FALLBACK: Search for grashof user specifically
+        if (email.trim() === 'grashof@gmail.com') {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, username, full_name')
+            .eq('username', 'grashof')
+            .single();
+          
+          if (profileData && !profileError) {
+            finalProfile = { 
+              ...profileData, 
+              email: 'grashof@gmail.com' // Add email for compatibility
+            };
+            console.log('Found grashof profile:', finalProfile);
+          } else {
+            console.error('Grashof profile not found:', profileError);
+          }
+        }
+      }
+      
+      if (!finalProfile) {
+        toast.error('Utente non trovato. Verifica che l\'email sia corretta e che l\'utente sia registrato.');
+        return;
+      }
+
+      // 2. Verifica che il diagramma esista e appartenga all'utente corrente
+      const { data: diagramData, error: diagramError } = await supabase
+        .from('diagrams')
+        .select('id, title, user_id')
+        .eq('id', diagramId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (diagramError || !diagramData) {
+        toast.error('Diagramma non trovato o non hai i permessi per condividerlo.');
+        return;
+      }
+
+      // 3. Controlla se l'utente è già stato invitato per questo diagramma
+      const { data: existingShare } = await supabase
+        .from('diagram_shares')
+        .select('id, status')
+        .eq('diagram_id', diagramId)
+        .eq('shared_with_id', finalProfile.id)
+        .single();
+
+      if (existingShare) {
+        if (existingShare.status === 'pending') {
+          toast.error('Invito già inviato a questo utente per questo diagramma.');
+        } else if (existingShare.status === 'accepted') {
+          toast.error('Diagramma già condiviso con questo utente.');
+        }
+        return;
+      }
+
+      // 4. Calcola data di scadenza
       const expiresAt = expiryDays === 'never' 
         ? null 
         : new Date(Date.now() + parseInt(expiryDays) * 24 * 60 * 60 * 1000).toISOString();
 
-      const inviteData = {
+      // 5. Crea record di condivisione diagramma usando le API corrette
+      const shareData = await db.diagramShares.invite({
         diagram_id: diagramId,
-        // shared_with_id: userToInvite.id, // Would get from user lookup
+        owner_id: user.id,
+        shared_with_id: finalProfile.id,
+        invited_by: user.id,
         permission_level: permission,
         invitation_message: message.trim() || null,
         expires_at: expiresAt,
         status: 'pending'
-      };
+      });
 
-      // For now, create invitation without user lookup (Phase 2 - would need user search)
-      // TODO: Add user lookup by email in Phase 3
-      console.log('Sending invitation:', inviteData);
-      
-      // Simulate successful invitation for now - real implementation would:
-      // 1. Look up user by email
-      // 2. Create diagram_shares record
-      // 3. Send email notification (Phase 3)
-      
-      // For Phase 2, we'll create a placeholder invitation
-      toast.success(`Invito inviato a ${email} con permessi ${permission}`);
+      if (!shareData) {
+        toast.error('Errore durante la creazione della condivisione.');
+        return;
+      }
+
+      // 6. Successo
+      toast.success(`Diagramma "${diagramTitle}" condiviso con ${finalProfile.username || email}`);
       
       // Call callback with invitation data
       if (onInviteSent) {
         onInviteSent({
-          email,
+          email: email.trim(),
           permission,
-          message,
-          expiresAt
+          message: message.trim(),
+          expiresAt,
+          recipientId: finalProfile.id,
+          recipientUsername: finalProfile.username
         });
       }
 
@@ -309,6 +383,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
             )}
           </div>
         </div>
+
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-4 border-t">

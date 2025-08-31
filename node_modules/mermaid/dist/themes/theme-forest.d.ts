@@ -64,6 +64,11 @@ declare class Theme {
     todayLineColor: string;
     personBorder: any;
     personBkg: string;
+    archEdgeColor: string;
+    archEdgeArrowColor: string;
+    archEdgeWidth: string;
+    archGroupBorderColor: any;
+    archGroupBorderWidth: string;
     labelColor: string;
     errorBkgColor: string;
     errorTextColor: string;
@@ -139,6 +144,14 @@ declare class Theme {
     quadrantInternalBorderStrokeFill: any;
     quadrantExternalBorderStrokeFill: any;
     quadrantTitleFill: any;
+    packet: {
+        startByteColor: any;
+        endByteColor: any;
+        labelColor: any;
+        titleColor: any;
+        blockStrokeColor: any;
+        blockFillColor: string;
+    } | undefined;
     xyChart: any;
     requirementBackground: any;
     requirementBorderColor: any;

@@ -6,51 +6,63 @@ export declare const diagram: {
         setAccTitle: (txt: string) => void;
         getAccTitle: () => string;
         getAccDescription: () => string;
+        getData: () => {
+            nodes: import("../../rendering-util/types.js").Node[];
+            edges: import("../../rendering-util/types.js").Edge[];
+            other: {};
+            config: MermaidConfig;
+        };
         setAccDescription: (txt: string) => void;
-        addVertex: (_id: any, textObj: any, type: any, style: any, classes: any, dir: any, props?: {}) => void;
-        lookUpDomId: (id: any) => any;
-        addLink: (_start: any, _end: any, type: any) => void;
-        updateLinkInterpolate: (positions: any, interp: any) => void;
-        updateLink: (positions: any, style: any) => void;
-        addClass: (ids: any, style: any) => void;
-        setDirection: (dir: any) => void;
-        setClass: (ids: any, className: any) => void;
-        setTooltip: (ids: any, tooltip: any) => void;
-        getTooltip: (id: any) => any;
-        setClickEvent: (ids: any, functionName: any, functionArgs: any) => void;
-        setLink: (ids: any, linkStr: any, target: any) => void;
-        bindFunctions: (element: any) => void;
-        getDirection: () => any;
-        getVertices: () => any;
-        getEdges: () => any;
-        getClasses: () => any;
+        addVertex: (id: string, textObj: import("./types.js").FlowText, type: import("./types.js").FlowVertexTypeParam, style: string[], classes: string[], dir: string, props: {} | undefined, shapeData: any) => void;
+        lookUpDomId: (id: string) => string;
+        addLink: (_start: string[], _end: string[], type: unknown) => void;
+        updateLinkInterpolate: (positions: (number | "default")[], interpolate: string) => void;
+        updateLink: (positions: (number | "default")[], style: string[]) => void;
+        addClass: (ids: string, style: string[]) => void;
+        setDirection: (dir: string) => void;
+        setClass: (ids: string, className: string) => void;
+        setTooltip: (ids: string, tooltip: string) => void;
+        getTooltip: (id: string) => string | undefined;
+        setClickEvent: (ids: string, functionName: string, functionArgs: string) => void;
+        setLink: (ids: string, linkStr: string, target: string) => void;
+        bindFunctions: (element: Element) => void;
+        getDirection: () => string;
+        getVertices: () => Map<string, import("./types.js").FlowVertex>;
+        getEdges: () => import("./types.js").FlowEdge[] & {
+            defaultInterpolate?: string | undefined;
+            defaultStyle?: string[] | undefined;
+        };
+        getClasses: () => Map<string, import("./types.js").FlowClass>;
         clear: (ver?: string) => void;
-        setGen: (ver: any) => void;
+        setGen: (ver: string) => void;
         defaultStyle: () => string;
-        addSubGraph: (_id: any, list: any, _title: any) => any;
-        getDepthFirstPos: (pos: any) => any;
+        addSubGraph: (_id: {
+            text: string;
+        }, list: string[], _title: {
+            text: string;
+            type: string;
+        }) => string;
+        getDepthFirstPos: (pos: number) => number;
         indexNodes: () => void;
-        getSubGraphs: () => any[];
-        destructLink: (_str: any, _startStr: any) => {
+        getSubGraphs: () => import("./types.js").FlowSubGraph[];
+        destructLink: (_str: string, _startStr: string) => import("./types.js").FlowLink | {
             type: string;
             stroke: string;
+            length: number;
         };
         lex: {
             firstGraph: () => boolean;
         };
-        exists: (allSgs: any, _id: any) => boolean;
-        makeUniq: (sg: any, allSubgraphs: any) => {
-            nodes: any[];
+        exists: (allSgs: import("./types.js").FlowSubGraph[], _id: string) => boolean;
+        makeUniq: (sg: import("./types.js").FlowSubGraph, allSubgraphs: import("./types.js").FlowSubGraph[]) => {
+            nodes: string[];
         };
         setDiagramTitle: (txt: string) => void;
         getDiagramTitle: () => string;
     };
     renderer: {
-        setConf: (cnf: any) => void;
-        addVertices: (vert: any, g: any, svgId: any, root: any, doc: any, diagObj: any) => Promise<void>;
-        addEdges: (edges: object, g: object, diagObj: any) => Promise<void>;
-        getClasses: (text: any, diagObj: any) => Record<string, import("../../diagram-api/types.js").DiagramStyleClassDef>;
-        draw: (text: any, id: any, _version: any, diagObj: any) => Promise<void>;
+        getClasses: (text: string, diagramObj: any) => Map<string, import("../../diagram-api/types.js").DiagramStyleClassDef>;
+        draw: (text: string, id: string, _version: string, diag: any) => Promise<void>;
     };
     styles: (options: import("./styles.js").FlowChartStyleOptions) => string;
     init: (cnf: MermaidConfig) => void;

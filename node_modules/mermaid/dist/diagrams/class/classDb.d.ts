@@ -1,4 +1,5 @@
 import type { ClassRelation, ClassNode, ClassNote, ClassMap, NamespaceMap, NamespaceNode } from './classTypes.js';
+import type { Node, Edge } from '../../rendering-util/types.js';
 export declare const setClassLabel: (_id: string, label: string) => void;
 /**
  * Function called by parser when a node definition has been found.
@@ -19,7 +20,7 @@ export declare const getClass: (id: string) => ClassNode;
 export declare const getClasses: () => ClassMap;
 export declare const getRelations: () => ClassRelation[];
 export declare const getNotes: () => ClassNote[];
-export declare const addRelation: (relation: ClassRelation) => void;
+export declare const addRelation: (classRelation: ClassRelation) => void;
 /**
  * Adds an annotation to the specified class Annotations mark special properties of the given type
  * (like 'interface' or 'service')
@@ -49,6 +50,7 @@ export declare const cleanupLabel: (label: string) => string;
  * @param className - Class to add
  */
 export declare const setCssClass: (ids: string, className: string) => void;
+export declare const defineClass: (ids: string[], style: string[]) => void;
 export declare const getTooltip: (id: string, namespace?: string) => string | undefined;
 /**
  * Called by parser when a link is found. Adds the URL to the vertex data.
@@ -94,6 +96,13 @@ export declare const addNamespace: (id: string) => void;
  */
 export declare const addClassesToNamespace: (id: string, classNames: string[]) => void;
 export declare const setCssStyle: (id: string, styles: string[]) => void;
+export declare const getData: () => {
+    nodes: Node[];
+    edges: Edge[];
+    other: {};
+    config: import("../../config.type.js").MermaidConfig;
+    direction: string;
+};
 declare const _default: {
     setAccTitle: (txt: string) => void;
     getAccTitle: () => string;
@@ -109,7 +118,7 @@ declare const _default: {
     addAnnotation: (className: string, annotation: string) => void;
     addNote: (text: string, className: string) => void;
     getRelations: () => ClassRelation[];
-    addRelation: (relation: ClassRelation) => void;
+    addRelation: (classRelation: ClassRelation) => void;
     getDirection: () => string;
     setDirection: (dir: string) => void;
     addMember: (className: string, member: string) => void;
@@ -128,6 +137,7 @@ declare const _default: {
     };
     setClickEvent: (ids: string, functionName: string, functionArgs: string) => void;
     setCssClass: (ids: string, className: string) => void;
+    defineClass: (ids: string[], style: string[]) => void;
     setLink: (ids: string, linkStr: string, target: string) => void;
     getTooltip: (id: string, namespace?: string | undefined) => string | undefined;
     setTooltip: (ids: string, tooltip?: string | undefined) => void;
@@ -140,5 +150,12 @@ declare const _default: {
     getNamespace: (name: string) => NamespaceNode;
     getNamespaces: () => NamespaceMap;
     setCssStyle: (id: string, styles: string[]) => void;
+    getData: () => {
+        nodes: Node[];
+        edges: Edge[];
+        other: {};
+        config: import("../../config.type.js").MermaidConfig;
+        direction: string;
+    };
 };
 export default _default;

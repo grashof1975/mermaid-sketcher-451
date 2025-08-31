@@ -6,9 +6,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, MessageCircle, ChevronRight, ChevronLeft, Clock, GripVertical, Save, Trash2, FileText, FolderOpen, Settings, Share, Users, Link } from 'lucide-react';
+import { Eye, MessageCircle, ChevronRight, ChevronLeft, Clock, GripVertical, Save, Trash2, FileText, FolderOpen, Settings, Share, Users, Link, RotateCcw, UserCheck } from 'lucide-react';
 import { SavedView } from '@/components/ViewSidebar';
 import { Comment } from '@/types/comments';
+import { SharedFolderSidebar } from '@/components/SharedFolderSidebar';
 
 interface Diagram {
   id: string;
@@ -51,10 +52,13 @@ interface QuickNavigationBarProps {
   onLoadView: (view: SavedView) => void;
   onJumpToComment: (comment: Comment) => void;
   onDeleteView?: (viewId: string) => void;
+  onUpdateView?: (viewId: string) => void;
   onDeleteComment?: (commentId: string) => void;
   onQuickSaveComment?: () => void;
   onSetZoomCenter?: () => void;
+  onCreateMotherView?: () => void;
   onSelectDiagram?: (diagram: Diagram) => void;
+  onOpenDiagram?: (diagramId: string) => void;
   nodeSelectionShortcut?: string;
   onNodeSelectionShortcutChange?: (shortcut: string) => void;
   viewNameTemplate?: string;
@@ -83,10 +87,13 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
   onLoadView,
   onJumpToComment,
   onDeleteView,
+  onUpdateView,
   onDeleteComment,
   onQuickSaveComment,
   onSetZoomCenter,
+  onCreateMotherView,
   onSelectDiagram,
+  onOpenDiagram,
   nodeSelectionShortcut = "ctrl+click",
   onNodeSelectionShortcutChange,
   viewNameTemplate = "v.01",
@@ -116,12 +123,16 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [showAllViews, setShowAllViews] = useState(false);
   const [showAllComments, setShowAllComments] = useState(false);
+  const [debugAutoSwitchDiagrams, setDebugAutoSwitchDiagrams] = useState(false);
+  const [debugAutoSwitchSharing, setDebugAutoSwitchSharing] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
 
-  // Load position and size from localStorage
+  // Load position, size and debug toggles from localStorage
   useEffect(() => {
     const savedPosition = localStorage.getItem('quickNavBar-position');
     const savedSize = localStorage.getItem('quickNavBar-size');
+    const savedDebugDiagrams = localStorage.getItem('quickNavBar-debugAutoSwitchDiagrams');
+    const savedDebugSharing = localStorage.getItem('quickNavBar-debugAutoSwitchSharing');
     
     if (savedPosition) {
       try {
@@ -146,6 +157,14 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
         // Keep default size if parsing fails
       }
     }
+
+    // Load debug toggle states
+    if (savedDebugDiagrams) {
+      setDebugAutoSwitchDiagrams(savedDebugDiagrams === 'true');
+    }
+    if (savedDebugSharing) {
+      setDebugAutoSwitchSharing(savedDebugSharing === 'true');
+    }
   }, []);
 
   // Save position and size to localStorage
@@ -156,6 +175,15 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
   useEffect(() => {
     localStorage.setItem('quickNavBar-size', JSON.stringify(size));
   }, [size]);
+
+  // Save debug toggle states to localStorage
+  useEffect(() => {
+    localStorage.setItem('quickNavBar-debugAutoSwitchDiagrams', debugAutoSwitchDiagrams.toString());
+  }, [debugAutoSwitchDiagrams]);
+
+  useEffect(() => {
+    localStorage.setItem('quickNavBar-debugAutoSwitchSharing', debugAutoSwitchSharing.toString());
+  }, [debugAutoSwitchSharing]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!barRef.current) return;
@@ -254,6 +282,22 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
       hour: '2-digit', 
       minute: '2-digit' 
     });
+  };
+
+  // Helper function to handle auto-switch to views tab
+  const handleAutoSwitchToViews = () => {
+    if (onActiveTabChange) {
+      onActiveTabChange('views');
+    }
+  };
+
+  // Toggle functions for debug switches
+  const toggleDebugDiagrams = () => {
+    setDebugAutoSwitchDiagrams(!debugAutoSwitchDiagrams);
+  };
+
+  const toggleDebugSharing = () => {
+    setDebugAutoSwitchSharing(!debugAutoSwitchSharing);
   };
 
   // Get comments linked to a specific view
@@ -371,6 +415,33 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
                 </TooltipContent>
               </Tooltip>
             )}
+
+            {/* Vista Madre button */}
+            {onCreateMotherView && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCreateMotherView();
+                    }}
+                    className="h-7 px-2 bg-background/90 hover:bg-accent"
+                  >
+                    🏠
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="max-w-xs">
+                  <div className="space-y-1">
+                    <div className="font-medium text-sm">🏠 Vista Madre</div>
+                    <div className="text-xs">
+                      Crea la vista principale di default del diagramma (100%, centrata)
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
             
             <Button
               variant="ghost"
@@ -385,7 +456,7 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
 
         <ScrollArea style={{ height: `${size.height - 60}px` }}>
           <Tabs value={activeTab} onValueChange={onActiveTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mx-3 mt-3">
+            <TabsList className="grid w-full grid-cols-5 mx-3 mt-3">
               <TabsTrigger value="views" className="text-xs">
                 <Eye className="h-3 w-3 mr-1" />
                 Viste
@@ -393,6 +464,10 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
               <TabsTrigger value="diagrams" className="text-xs">
                 <FileText className="h-3 w-3 mr-1" />
                 Diagrammi
+              </TabsTrigger>
+              <TabsTrigger value="shared" className="text-xs">
+                <UserCheck className="h-3 w-3 mr-1" />
+                Condivise
               </TabsTrigger>
               <TabsTrigger value="sharing" className="text-xs">
                 <Share className="h-3 w-3 mr-1" />
@@ -452,6 +527,20 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
                               </div>
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {onUpdateView && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onUpdateView(view.id);
+                                  }}
+                                  className="h-5 w-5 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                                  title="Aggiorna vista con posizione attuale"
+                                >
+                                  <RotateCcw className="h-3 w-3" />
+                                </Button>
+                              )}
                               {onDeleteView && (
                                 <Button
                                   variant="ghost"
@@ -652,12 +741,34 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
               {/* Diagrammi */}
               {diagrams && diagrams.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <FolderOpen className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm font-medium">Diagrammi</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {diagrams?.length || 0}
-                    </Badge>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <FolderOpen className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm font-medium">Diagrammi</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {diagrams?.length || 0}
+                      </Badge>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={debugAutoSwitchDiagrams ? "default" : "ghost"}
+                          size="sm"
+                          onClick={toggleDebugDiagrams}
+                          className="h-6 w-6 p-0"
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="max-w-xs">
+                        <div className="text-xs">
+                          <div className="font-medium">🔧 Debug Auto-Switch</div>
+                          <div className="mt-1">
+                            {debugAutoSwitchDiagrams ? '✅ ON' : '❌ OFF'}: Switch automatico al tab Viste quando si seleziona un diagramma
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 
                   <div className="space-y-1">
@@ -670,7 +781,12 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
                                 ? 'bg-primary/20 border border-primary/30' 
                                 : 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-950/50'
                             }`}
-                            onClick={() => onSelectDiagram?.(diagram)}
+                            onClick={() => {
+                              onSelectDiagram?.(diagram);
+                              if (debugAutoSwitchDiagrams) {
+                                handleAutoSwitchToViews();
+                              }
+                            }}
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
@@ -722,6 +838,55 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
               )}
             </TabsContent>
 
+            <TabsContent value="shared" className="p-3 space-y-4 mt-2">
+              {/* Debug Toggle for Shared Tab */}
+              <div className="flex items-center justify-between bg-accent/20 rounded p-2 mb-4">
+                <div className="text-xs font-medium text-muted-foreground">🔧 Debug Auto-Switch</div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={debugAutoSwitchSharing ? "default" : "ghost"}
+                      size="sm"
+                      onClick={toggleDebugSharing}
+                      className="h-6 px-2 text-xs"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      {debugAutoSwitchSharing ? 'ON' : 'OFF'}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="max-w-xs">
+                    <div className="text-xs">
+                      <div className="font-medium">🔧 Debug Auto-Switch</div>
+                      <div className="mt-1">
+                        {debugAutoSwitchSharing ? '✅ ON' : '❌ OFF'}: Switch automatico al tab Viste quando si interagisce con elementi condivisi
+                      </div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+
+              <SharedFolderSidebar 
+                onLoadView={(viewId, viewName) => {
+                  onLoadView?.({
+                    id: viewId,
+                    name: viewName,
+                    zoom: 1,
+                    pan: { x: 0, y: 0 },
+                    timestamp: Date.now()
+                  });
+                  if (debugAutoSwitchSharing) {
+                    handleAutoSwitchToViews();
+                  }
+                }}
+                onOpenDiagram={(diagramId) => {
+                  onOpenDiagram?.(diagramId);
+                  if (debugAutoSwitchSharing) {
+                    handleAutoSwitchToViews();
+                  }
+                }}
+              />
+            </TabsContent>
+
             <TabsContent value="sharing" className="p-3 space-y-4 mt-2">
               {/* Empty state - Sharing not available */}
               {(!currentDiagram || !sharingEnabled) && (
@@ -737,6 +902,7 @@ export const QuickNavigationBar: React.FC<QuickNavigationBarProps> = ({
               {/* Sharing available */}
               {currentDiagram && sharingEnabled && (
                 <div className="space-y-4">
+
                   {/* Current User Role */}
                   <div className="bg-accent/30 rounded p-2">
                     <div className="flex items-center gap-2 text-xs">
