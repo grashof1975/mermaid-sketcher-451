@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import mermaid from 'mermaid'
 
 interface SafeMermaidRendererProps {
   code: string
@@ -29,25 +28,47 @@ export const SafeMermaidRenderer: React.FC<SafeMermaidRendererProps> = ({
     rendered: false
   })
 
-  // Initialize Mermaid with safe configuration
+  // Dynamic import of Mermaid to avoid CommonJS issues
+  const [mermaidModule, setMermaidModule] = useState<any>(null);
+
+  // Initialize Mermaid with dynamic import
   useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      securityLevel: 'strict',
-      fontFamily: 'ui-sans-serif, system-ui, -apple-system',
-      fontSize: 14,
-      // Error handling
-      logLevel: process.env.NODE_ENV === 'development' ? 'debug' : 'error',
-      // Security settings
-      htmlLabels: false,
-      maxTextSize: 50000,
-      maxEdges: 500,
-    })
+    const initMermaid = async () => {
+      try {
+        console.log('🎨 SafeMermaidRenderer: Loading mermaid module...');
+        const mermaidModule = await import('mermaid');
+        const mermaid = mermaidModule.default || mermaidModule;
+        
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: 'default',
+          securityLevel: 'strict',
+          fontFamily: 'ui-sans-serif, system-ui, -apple-system',
+          fontSize: 14,
+          // Error handling
+          logLevel: process.env.NODE_ENV === 'development' ? 'debug' : 'error',
+          // Security settings
+          htmlLabels: false,
+          maxTextSize: 50000,
+          maxEdges: 500,
+        });
+        
+        setMermaidModule(mermaid);
+        console.log('🎨 SafeMermaidRenderer: Mermaid initialized successfully');
+      } catch (error) {
+        console.error('🎨 SafeMermaidRenderer: Failed to load mermaid:', error);
+        setState(prev => ({ 
+          ...prev, 
+          error: error instanceof Error ? error : new Error('Failed to load Mermaid')
+        }));
+      }
+    };
+
+    initMermaid();
   }, [])
 
   const renderDiagram = useCallback(async (diagramCode: string) => {
-    if (!containerRef.current || !diagramCode.trim()) {
+    if (!containerRef.current || !diagramCode.trim() || !mermaidModule) {
       setState(prev => ({ ...prev, error: null, rendered: false }))
       return
     }
@@ -55,8 +76,10 @@ export const SafeMermaidRenderer: React.FC<SafeMermaidRendererProps> = ({
     setState(prev => ({ ...prev, isLoading: true, error: null }))
 
     try {
+      console.log('🎨 SafeMermaidRenderer: Rendering diagram...');
+      
       // Validate Mermaid syntax before rendering
-      await mermaid.parse(diagramCode)
+      await mermaidModule.parse(diagramCode)
       
       // Clear previous content
       containerRef.current.innerHTML = ''
@@ -65,11 +88,12 @@ export const SafeMermaidRenderer: React.FC<SafeMermaidRendererProps> = ({
       const uniqueId = `${id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       
       // Render the diagram
-      const { svg } = await mermaid.render(uniqueId, diagramCode)
+      const { svg } = await mermaidModule.render(uniqueId, diagramCode)
       
       if (containerRef.current) {
         containerRef.current.innerHTML = svg
         setState({ isLoading: false, error: null, rendered: true })
+        console.log('🎨 SafeMermaidRenderer: Diagram rendered successfully');
         onSuccess?.()
       }
     } catch (error) {
@@ -100,7 +124,7 @@ export const SafeMermaidRenderer: React.FC<SafeMermaidRendererProps> = ({
         `
       }
     }
-  }, [id, onError, onSuccess])
+  }, [id, onError, onSuccess, mermaidModule])
 
   // Re-render when code changes
   useEffect(() => {

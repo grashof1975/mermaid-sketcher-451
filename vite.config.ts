@@ -22,37 +22,58 @@ export default defineConfig(({ mode }) => {
       },
     },
     optimizeDeps: {
-      include: ['mermaid', 'react', 'react-dom'],
-      exclude: [],
-      force: true // Force re-optimization in case of issues
+      include: [
+        'mermaid',
+        'react', 
+        'react-dom',
+        'react-router-dom',
+        '@tanstack/react-query'
+      ],
+      exclude: [
+        // Exclude problematic mermaid modules
+        'mermaid/dist/mermaid.esm.mjs'
+      ],
+      force: true
     },
     build: {
       sourcemap: mode === 'development',
+      target: 'es2020',
       rollupOptions: {
+        output: {
+          // Separate mermaid into its own chunk to avoid conflicts
+          manualChunks: {
+            mermaid: ['mermaid']
+          }
+        },
         external: (id) => {
-          // Don't externalize any dependencies
+          // Handle commonjs-external pattern
+          if (id.includes('?commonjs-external')) {
+            return false;
+          }
           return false;
         },
         onwarn(warning, warn) {
-          // Suppress certain warnings that can cause blank screens
+          // Suppress warnings that can cause build failures
           if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
           if (warning.code === 'SOURCEMAP_ERROR') return;
+          if (warning.code === 'CIRCULAR_DEPENDENCY' && warning.message.includes('mermaid')) return;
           warn(warning);
         }
       },
       commonjsOptions: {
-        include: [/node_modules/],
-        transformMixedEsModules: true
+        include: [/node_modules/, /mermaid/],
+        transformMixedEsModules: true,
+        requireReturnsDefault: 'auto'
       }
     },
     esbuild: {
-      // Ensure JSX is handled correctly
       jsx: 'automatic',
       target: 'es2020'
     },
     define: {
-      // Ensure process.env is available
-      'process.env.NODE_ENV': JSON.stringify(mode)
+      'process.env.NODE_ENV': JSON.stringify(mode),
+      // Define global for better compatibility
+      global: 'globalThis'
     }
   };
 });

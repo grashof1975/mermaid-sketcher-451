@@ -1,6 +1,5 @@
 
 import React, { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import mermaid from 'mermaid';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +26,7 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, title, 
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [mermaidModule, setMermaidModule] = useState<any>(null);
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -247,18 +247,34 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, title, 
   }), [zoom, pan, onViewChange, focusOnComponent, fitToView, reset100View, setCenterPoint]);
   
   useEffect(() => {
-    // Initialize mermaid with custom config
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
-      securityLevel: 'loose',
-      fontFamily: 'Inter, sans-serif',
-    });
+    // Initialize mermaid with dynamic import
+    const initMermaid = async () => {
+      try {
+        console.log('🎨 Preview: Loading mermaid module...');
+        const mermaidModule = await import('mermaid');
+        const mermaid = mermaidModule.default || mermaidModule;
+        
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+          securityLevel: 'loose',
+          fontFamily: 'Inter, sans-serif',
+        });
+        
+        setMermaidModule(mermaid);
+        console.log('🎨 Preview: Mermaid initialized successfully');
+      } catch (error) {
+        console.error('🎨 Preview: Failed to load mermaid:', error);
+        setError('Failed to load Mermaid library');
+      }
+    };
+
+    initMermaid();
   }, []);
   
   useEffect(() => {
     const renderDiagram = async () => {
-      if (!code.trim()) {
+      if (!code.trim() || !mermaidModule) {
         setSvg('');
         setError(null);
         return;
@@ -268,11 +284,13 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, title, 
         setLoading(true);
         setError(null);
         
+        console.log('🎨 Preview: Rendering diagram...');
         // Add a small delay to show loading state
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        const { svg } = await mermaid.render('mermaid-diagram', code);
+        const { svg } = await mermaidModule.render('mermaid-diagram', code);
         setSvg(svg);
+        console.log('🎨 Preview: Diagram rendered successfully');
       } catch (err) {
         console.error('Mermaid rendering error:', err);
         setError(err instanceof Error ? err.message : 'Failed to render diagram');
@@ -283,7 +301,7 @@ const Preview = forwardRef<PreviewRef, PreviewProps>(({ code, className, title, 
     };
 
     renderDiagram();
-  }, [code]);
+  }, [code, mermaidModule]);
 
   // Add click handlers to SVG elements after rendering
   useEffect(() => {
