@@ -19,4 +19,19 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: [
+      'mermaid',
+      'lucide-react',
+      '@supabase/supabase-js',
+      'react-router-dom',
+      'lodash'
+    ],
+    exclude: []
+  },
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/]
+    }
+  }
 }));
